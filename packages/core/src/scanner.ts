@@ -50,3 +50,93 @@ export const scanRegions = (root: ParentNode = document): ScannedRegion[] => {
 
 export const toProtocolRegions = (regions: ScannedRegion[]): PveRegion[] =>
   regions.map(({ element: _element, ...region }) => region)
+
+export type RegionRegistryOptions = {
+  /** Debounce for mutation-triggered rescans, ms. */
+  debounceMs?: number
+  /** Fires only when the region set changed (new/removed/re-identified regions). */
+  onChange?: (regions: ScannedRegion[]) => void
+  /** Fires after every rescan, even if the region set is identical — elements may have been replaced. */
+  onRescan?: (regions: ScannedRegion[]) => void
+  root?: ParentNode
+}
+
+const DEFAULT_DEBOUNCE_MS = 100
+
+/**
+ * Live view of the page's marked regions. Rescans on DOM mutations (debounced)
+ * and notifies `onChange` only when the region set actually changed.
+ */
+export class RegionRegistry {
+  private readonly debounceMs: number
+  private lastSignature: null | string = null
+  private observer: MutationObserver | null = null
+  private readonly onChange?: (regions: ScannedRegion[]) => void
+  private readonly onRescan?: (regions: ScannedRegion[]) => void
+  private rescanTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly root: ParentNode
+  private scanned: ScannedRegion[] = []
+
+  constructor(options: RegionRegistryOptions = {}) {
+    this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS
+    this.onChange = options.onChange
+    this.onRescan = options.onRescan
+    this.root = options.root ?? document
+  }
+
+  get regions(): ScannedRegion[] {
+    return this.scanned
+  }
+
+  regionForElement(element: Element): ScannedRegion | undefined {
+    // Prefer the field/row region when an element carries both field and container attrs
+    return (
+      this.scanned.find((region) => region.element === element && region.kind !== 'container') ??
+      this.scanned.find((region) => region.element === element)
+    )
+  }
+
+  start(): void {
+    if (this.observer) {
+      return
+    }
+    this.rescan()
+    this.observer = new MutationObserver(() => this.scheduleRescan())
+    this.observer.observe(this.root instanceof Document ? this.root.documentElement : (this.root as Node), {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    })
+  }
+
+  stop(): void {
+    this.observer?.disconnect()
+    this.observer = null
+    if (this.rescanTimer !== null) {
+      clearTimeout(this.rescanTimer)
+      this.rescanTimer = null
+    }
+    // Next start() re-reports even if the region set is unchanged
+    this.lastSignature = null
+  }
+
+  private rescan(): void {
+    this.scanned = scanRegions(this.root)
+    const signature = this.scanned.map((region) => region.regionId).join('\n')
+    if (signature !== this.lastSignature) {
+      this.lastSignature = signature
+      this.onChange?.(this.scanned)
+    }
+    this.onRescan?.(this.scanned)
+  }
+
+  private scheduleRescan(): void {
+    if (this.rescanTimer !== null) {
+      clearTimeout(this.rescanTimer)
+    }
+    this.rescanTimer = setTimeout(() => {
+      this.rescanTimer = null
+      this.rescan()
+    }, this.debounceMs)
+  }
+}

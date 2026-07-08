@@ -1,5 +1,17 @@
 import type { CollectionConfig, Config, GlobalConfig, LivePreviewConfig } from 'payload'
 
+export { AdminBridge } from './utils/adminBridge.js'
+export type { AdminBridgeOptions, AdminMessageHandler } from './utils/adminBridge.js'
+export { resolveDataPath } from './utils/fieldPaths.js'
+export type {
+  BlockSchemaLike,
+  FieldSchemaLike,
+  ResolvedDataPath,
+  ResolveDataPathArgs,
+  TabSchemaLike,
+} from './utils/fieldPaths.js'
+export { buildDocRef, buildPermissionSummary, collectBlockLabels } from './utils/helloPayload.js'
+
 export type BlockOpsOptions = {
   add?: boolean
   duplicate?: boolean

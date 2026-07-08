@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { scanRegions, toProtocolRegions } from '@payload-inline-visual-editor/core'
-import { beforeEach, describe, expect, it } from 'vitest'
+import type { ScannedRegion } from '@payload-inline-visual-editor/core'
+
+import { RegionRegistry, scanRegions, toProtocolRegions } from '@payload-inline-visual-editor/core'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 beforeEach(() => {
   document.body.innerHTML = `
@@ -54,5 +56,81 @@ describe('scanRegions', () => {
     for (const region of toProtocolRegions(first)) {
       expect(region).not.toHaveProperty('element')
     }
+  })
+})
+
+const flushMutations = async (ms = 30): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+describe('RegionRegistry', () => {
+  it('reports the initial scan on start and rescans on DOM mutations (debounced)', async () => {
+    const changes: ScannedRegion[][] = []
+    const registry = new RegionRegistry({ debounceMs: 5, onChange: (regions) => changes.push(regions) })
+
+    registry.start()
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toHaveLength(4)
+
+    const extra = document.createElement('p')
+    extra.setAttribute('data-pve-field', 'layout.0.subheading')
+    document.querySelector('[data-pve-row]')!.appendChild(extra)
+    await flushMutations()
+
+    expect(changes).toHaveLength(2)
+    expect(changes[1]!.some((region) => region.path === 'layout.0.subheading')).toBe(true)
+
+    registry.stop()
+  })
+
+  it('fires onRescan but not onChange when elements are replaced with identical regions', async () => {
+    const onChange = vi.fn()
+    const onRescan = vi.fn()
+    const registry = new RegionRegistry({ debounceMs: 5, onChange, onRescan })
+
+    registry.start()
+    onChange.mockClear()
+    onRescan.mockClear()
+
+    const heading = document.querySelector('[data-pve-field="layout.0.heading"]')!
+    const replacement = heading.cloneNode(true)
+    heading.replaceWith(replacement)
+    await flushMutations()
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onRescan).toHaveBeenCalled()
+    expect(registry.regionForElement(replacement as Element)).toBeDefined()
+
+    registry.stop()
+  })
+
+  it('stops observing on stop and re-reports on restart', async () => {
+    const onChange = vi.fn()
+    const registry = new RegionRegistry({ debounceMs: 5, onChange })
+
+    registry.start()
+    registry.stop()
+    onChange.mockClear()
+
+    document.querySelector('[data-pve-row]')!.remove()
+    await flushMutations()
+    expect(onChange).not.toHaveBeenCalled()
+
+    registry.start()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    registry.stop()
+  })
+
+  it('prefers field/row regions over container regions for the same element', () => {
+    document.body.innerHTML = `
+      <main data-pve-scope="collection:pages;id:abc">
+        <div data-pve-field="layout.0" data-pve-row="row1" data-pve-container="layout.0.columns"></div>
+      </main>
+    `
+    const registry = new RegionRegistry()
+    registry.start()
+    const element = document.querySelector('[data-pve-row]')!
+    expect(registry.regionForElement(element)?.kind).toBe('row')
+    registry.stop()
   })
 })

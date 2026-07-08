@@ -43,4 +43,4 @@ Open-source inline visual editor plugin for Payload CMS 3.x (target `payload@^3.
 
 ## Status
 
-M0 (scaffold) done. Next: M1 bridge spike — controller ↔ SDK handshake, edit-mode toggle, scanner + hover outlines, schema-path derivation on nested fixtures. Milestone table: SPEC §13.
+M0 (scaffold) and M1 (bridge spike) done: admin↔SDK handshake with per-load sessions (`AdminBridge` in plugin, `SiteBridge` in core), "Edit on page" toggle, region registry + hover outlines/labels, hover/select/regions reporting, schema-path derivation (`resolveDataPath`) validated on nested fixtures. Next: M2 click-to-edit — `select` → expand/scroll/focus form field, reverse `focus` flash, permission gating end-to-end. Milestone table: SPEC §13.
