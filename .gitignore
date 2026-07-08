@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.next/
+*.tsbuildinfo
+.env
+.env.local
+dev/dev.db*
+dev/media/
+dev/payload-types.ts
+test-results/
+playwright-report/
+.DS_Store

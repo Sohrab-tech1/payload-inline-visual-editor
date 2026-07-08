@@ -1,0 +1,12 @@
+packages:
+  - 'packages/*'
+  - 'dev'
+  - 'test'
+
+onlyBuiltDependencies:
+  - '@swc/core'
+  - better-sqlite3
+  - esbuild
+  - libsql
+  - sharp
+  - unrs-resolver

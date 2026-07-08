@@ -1,0 +1,17 @@
+{
+  "name": "payload-inline-visual-editor-monorepo",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.34.3",
+  "scripts": {
+    "build": "pnpm --filter \"./packages/*\" -r build",
+    "clean": "pnpm --filter \"./packages/*\" -r clean",
+    "dev": "pnpm build && pnpm --filter dev dev",
+    "watch": "pnpm --filter \"./packages/*\" --parallel -r watch",
+    "test": "pnpm --filter @payload-inline-visual-editor/tests test",
+    "e2e": "pnpm --filter @payload-inline-visual-editor/tests e2e"
+  }
+}

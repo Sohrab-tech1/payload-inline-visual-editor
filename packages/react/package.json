@@ -1,0 +1,40 @@
+{
+  "name": "@payload-inline-visual-editor/react",
+  "version": "0.0.0",
+  "description": "React adapter for the Payload CMS inline visual editor site SDK",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "pnpm clean && pnpm build:types && pnpm build:swc",
+    "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths",
+    "build:types": "tsc --build",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "watch": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --watch"
+  },
+  "dependencies": {
+    "@payload-inline-visual-editor/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.15.43",
+    "@types/react": "^19.2.0",
+    "react": "^19.2.0",
+    "typescript": "^5.9.3"
+  }
+}

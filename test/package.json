@@ -1,0 +1,21 @@
+{
+  "name": "@payload-inline-visual-editor/tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@payload-inline-visual-editor/core": "workspace:*",
+    "@payload-inline-visual-editor/react": "workspace:*",
+    "@playwright/test": "^1.61.1",
+    "jsdom": "^29.1.1",
+    "payload": "^3.85.2",
+    "payload-inline-visual-editor": "workspace:*",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
