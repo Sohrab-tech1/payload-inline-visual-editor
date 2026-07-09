@@ -4,8 +4,15 @@ import { layoutBlocks } from '../blocks'
 
 const serverURL = process.env.NEXT_PUBLIC_SERVER_URL ?? 'http://localhost:3000'
 
+// The viewer account exercises permission gating end-to-end (SPEC §10):
+// it can open documents in the admin but cannot update them.
+export const VIEWER_EMAIL = 'viewer@payloadcms.com'
+
 export const Pages: CollectionConfig = {
   slug: 'pages',
+  access: {
+    update: ({ req }) => req.user?.email !== VIEWER_EMAIL,
+  },
   admin: {
     defaultColumns: ['title', 'slug', 'updatedAt'],
     livePreview: {

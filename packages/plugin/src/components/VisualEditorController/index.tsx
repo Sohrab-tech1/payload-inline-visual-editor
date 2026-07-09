@@ -7,8 +7,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BlockOpsOptions } from '../../index.js'
 import type { FieldSchemaLike } from '../../utils/fieldPaths.js'
 
-import { Button, useDocumentInfo, useLivePreviewContext, useLocale } from '../../internal/payload-internals.js'
+import {
+  Button,
+  useDocumentInfo,
+  useForm,
+  useLivePreviewContext,
+  useLocale,
+} from '../../internal/payload-internals.js'
 import { AdminBridge } from '../../utils/adminBridge.js'
+import { collectRowExpansions, focusFormField, isValidDataPath, pathFromFormElement } from '../../utils/formFocus.js'
 import { buildDocRef, buildPermissionSummary, collectBlockLabels } from '../../utils/helloPayload.js'
 
 export type VisualEditorControllerProps = {
@@ -20,17 +27,21 @@ export type VisualEditorControllerProps = {
  * Admin-side controller, mounted inside the document <Form> via
  * edit.beforeDocumentControls. Owns the "Edit on page" toggle and the admin
  * half of the editor channel: per-iframe-load handshake, edit-mode relay,
- * and (M2+) hover/select handling.
+ * click-to-edit (`select` → expand/scroll/focus the form field), and reverse
+ * focus sync (form field focus/hover → flash on page).
  */
 export const VisualEditorController = ({ debug }: VisualEditorControllerProps) => {
   const { breakpoint, iframeRef, isLivePreviewing, loadedURL } = useLivePreviewContext()
   const { collectionSlug, docConfig, docPermissions, globalSlug, hasPublishPermission, hasSavePermission, id } =
     useDocumentInfo()
+  const { dispatchFields, getFields } = useForm()
   const locale = useLocale()
 
   const [editMode, setEditMode] = useState(false)
   const [connected, setConnected] = useState(false)
   const bridgeRef = useRef<AdminBridge | null>(null)
+  const regionPathsRef = useRef<Set<string>>(new Set())
+  const selectSeqRef = useRef(0)
 
   const targetOrigin = useMemo(() => {
     if (!loadedURL) {
@@ -57,6 +68,18 @@ export const VisualEditorController = ({ debug }: VisualEditorControllerProps) =
     }),
   })
 
+  const handleSelectRef = useRef<(path: string) => void>(null!)
+  handleSelectRef.current = (path) => {
+    if (!isValidDataPath(path)) {
+      return
+    }
+    for (const expansion of collectRowExpansions(getFields(), path)) {
+      dispatchFields({ path: expansion.path, type: 'SET_ROW_COLLAPSED', updatedRows: expansion.updatedRows })
+    }
+    const seq = ++selectSeqRef.current
+    void focusFormField({ path, shouldContinue: () => selectSeqRef.current === seq })
+  }
+
   useEffect(() => {
     if (!isLivePreviewing || !targetOrigin) {
       return
@@ -81,12 +104,18 @@ export const VisualEditorController = ({ debug }: VisualEditorControllerProps) =
             )
           }
           break
-        // hover/select/regions are consumed in M2+ (field focus, block ops)
+        case 'payload-visual-editor:regions':
+          regionPathsRef.current = new Set(message.payload.regions.map((region) => region.path))
+          break
+        case 'payload-visual-editor:select':
+          handleSelectRef.current(message.payload.path)
+          break
       }
     })
 
     const startSession = (): void => {
       setConnected(false)
+      regionPathsRef.current = new Set()
       bridge.startSession(buildHelloRef.current())
     }
     startSession()
@@ -100,6 +129,40 @@ export const VisualEditorController = ({ debug }: VisualEditorControllerProps) =
       setConnected(false)
     }
   }, [debug, iframeRef, isLivePreviewing, loadedURL, targetOrigin])
+
+  // Reverse sync: focusing/hovering a marked field in the form flashes it on the page
+  useEffect(() => {
+    if (!editMode || !connected) {
+      return
+    }
+    let lastSentPath: null | string = null
+
+    const sendFocus = (target: EventTarget | null, force: boolean): void => {
+      if (!(target instanceof Element)) {
+        return
+      }
+      const path = pathFromFormElement(target)
+      if (!path || !regionPathsRef.current.has(path)) {
+        lastSentPath = null
+        return
+      }
+      if (!force && lastSentPath === path) {
+        return
+      }
+      lastSentPath = path
+      bridgeRef.current?.send('focus', { path })
+    }
+
+    const onFocusIn = (event: FocusEvent): void => sendFocus(event.target, true)
+    const onPointerOver = (event: PointerEvent): void => sendFocus(event.target, false)
+
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('pointerover', onPointerOver, { passive: true })
+    return () => {
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('pointerover', onPointerOver)
+    }
+  }, [editMode, connected])
 
   if (!isLivePreviewing) {
     return null

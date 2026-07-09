@@ -10,6 +10,15 @@ export type {
   ResolveDataPathArgs,
   TabSchemaLike,
 } from './utils/fieldPaths.js'
+export {
+  collectRowExpansions,
+  fieldElementId,
+  findFieldElement,
+  focusFormField,
+  isValidDataPath,
+  pathFromFormElement,
+} from './utils/formFocus.js'
+export type { FocusFormFieldArgs, RowExpansion, RowLike } from './utils/formFocus.js'
 export { buildDocRef, buildPermissionSummary, collectBlockLabels } from './utils/helloPayload.js'
 
 export type BlockOpsOptions = {

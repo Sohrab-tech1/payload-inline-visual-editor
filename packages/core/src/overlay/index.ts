@@ -3,6 +3,7 @@ const LAYER_ATTR = 'data-pve-overlay'
 const HIGHLIGHT_COLOR = '#2563eb'
 const HIGHLIGHT_BG = 'rgba(37, 99, 235, 0.08)'
 const LABEL_HEIGHT = 20
+const FLASH_MS = 1200
 
 export type OverlayHoverTarget = {
   element: Element
@@ -17,6 +18,9 @@ export type OverlayHoverTarget = {
  */
 export class OverlayRenderer {
   private box: HTMLDivElement | null = null
+  private flashBox: HTMLDivElement | null = null
+  private flashTarget: Element | null = null
+  private flashTimer: null | ReturnType<typeof setTimeout> = null
   private hoverTarget: OverlayHoverTarget | null = null
   private label: HTMLDivElement | null = null
   private layer: HTMLDivElement | null = null
@@ -61,19 +65,64 @@ export class OverlayRenderer {
       'overflow:hidden;text-overflow:ellipsis;'
     layer.appendChild(label)
 
+    const flashBox = doc.createElement('div')
+    flashBox.setAttribute('data-pve-flash-box', '')
+    flashBox.style.cssText =
+      `position:fixed;display:none;box-sizing:border-box;border:2px solid ${HIGHLIGHT_COLOR};` +
+      `background:${HIGHLIGHT_BG};border-radius:2px;`
+    layer.appendChild(flashBox)
+
     doc.body.appendChild(layer)
     this.layer = layer
     this.box = box
     this.label = label
+    this.flashBox = flashBox
 
     const win = doc.defaultView ?? window
     win.addEventListener('resize', this.scheduleRefresh)
     doc.addEventListener('scroll', this.scheduleRefresh, { capture: true, passive: true })
   }
 
+  /** Draws a temporary highlight (admin-side field focus → page element). */
+  flash(element: Element): void {
+    if (!this.flashBox) {
+      return
+    }
+    this.flashTarget = element
+    if (this.flashTimer !== null) {
+      clearTimeout(this.flashTimer)
+    }
+    this.flashTimer = setTimeout(() => {
+      this.flashTimer = null
+      this.flashTarget = null
+      this.refresh()
+    }, FLASH_MS)
+
+    this.flashBox.style.display = 'block'
+    if (typeof this.flashBox.animate === 'function') {
+      this.flashBox.animate(
+        [{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }],
+        { duration: FLASH_MS, easing: 'ease-out' },
+      )
+    }
+    this.refresh()
+  }
+
   refresh(): void {
     if (!this.box || !this.label) {
       return
+    }
+    if (this.flashBox) {
+      if (this.flashTarget?.isConnected) {
+        const flashRect = this.flashTarget.getBoundingClientRect()
+        this.flashBox.style.display = 'block'
+        this.flashBox.style.left = `${flashRect.left}px`
+        this.flashBox.style.top = `${flashRect.top}px`
+        this.flashBox.style.width = `${flashRect.width}px`
+        this.flashBox.style.height = `${flashRect.height}px`
+      } else {
+        this.flashBox.style.display = 'none'
+      }
     }
     if (!this.hoverTarget || !this.hoverTarget.element.isConnected) {
       this.box.style.display = 'none'
@@ -130,9 +179,15 @@ export class OverlayRenderer {
     this.resizeObserver?.disconnect()
     this.resizeObserver = null
     this.hoverTarget = null
+    if (this.flashTimer !== null) {
+      clearTimeout(this.flashTimer)
+      this.flashTimer = null
+    }
+    this.flashTarget = null
     this.layer.remove()
     this.layer = null
     this.box = null
     this.label = null
+    this.flashBox = null
   }
 }

@@ -32,6 +32,11 @@ export const seed = async (payload: Payload): Promise<void> => {
   })
 
   await payload.create({
+    collection: 'users',
+    data: { email: 'viewer@payloadcms.com', password: 'test' },
+  })
+
+  await payload.create({
     collection: 'pages',
     data: {
       _status: 'published',
@@ -72,5 +77,7 @@ export const seed = async (payload: Payload): Promise<void> => {
     },
   })
 
-  payload.logger.info('Seeded dev user (dev@payloadcms.com / test), home page, and header global')
+  payload.logger.info(
+    'Seeded dev user (dev@payloadcms.com / test), read-only viewer (viewer@payloadcms.com / test), home page, and header global',
+  )
 }

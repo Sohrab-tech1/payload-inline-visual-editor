@@ -88,7 +88,7 @@ Fallback mount (also verified inside `<Form>`): the `views.edit.livePreview.Comp
 - `removeFieldRow({ path, rowIndex })`, `replaceFieldRow(…)`
 - `dispatchFields({ type: 'DUPLICATE_ROW' | 'ADD_ROW' | 'MOVE_ROW' | 'REMOVE_ROW' | 'UPDATE' | … })`
 - Rows carry a stable ObjectId-hex `id` + `blockType` in both form state (`rows: Row[]`) and document JSON — the reliable cross-frame row identifier.
-- Field DOM wrappers in the admin carry class `field-${path.replace(/\./g, '__')}` — deterministic scroll/focus targeting.
+- Field inputs in the admin carry `id="field-${path.replace(/\./g, '__')}"` (container fields put it on the wrapper div; Lexical rich text uses `data-field-path` instead; wrappers have no path class) — deterministic scroll/focus targeting.
 
 ### Other primitives we reuse
 
@@ -262,7 +262,7 @@ Overlay = one `position: fixed; pointer-events: none` layer appended to `documen
 
 ## 9. Field editing flows
 
-- **v1 — focus-in-form:** `select { path }` → controller expands collapsed ancestor rows, scrolls `.field-${path.replace(/\./g,'__')}` into view in `DocumentFields`, focuses the first focusable input, flashes a highlight. Reverse: form field hover/focus → `focus { path }` → SDK flashes the page element. Every field type — Lexical, uploads, relationships, custom plugin fields — gets native editing for free.
+- **v1 — focus-in-form:** `select { path }` → controller expands collapsed ancestor rows, scrolls `#field-${path.replace(/\./g,'__')}` (or `[data-field-path]`) into view in `DocumentFields`, focuses the first focusable input, flashes a highlight. Reverse: form field hover/focus → `focus { path }` → SDK flashes the page element. Every field type — Lexical, uploads, relationships, custom plugin fields — gets native editing for free.
 - **v2 — near-cursor popover:** admin-side popover (position translated through iframe zoom/DeviceContainer offset from `useLivePreviewContext().zoom`/`measuredDeviceSize`) rendering just the clicked field subtree via `RenderFields` bound to the **same** Form context; server-rendered custom field components fetched on demand via the `'render-field'` server function.
 - **Cross-document & relationships:** clicking a region of another document (`doc-switch-request`) or "edit related doc" opens `useDocumentDrawer` for that entity; after drawer save, the stock `payload-document-event` triggers the site refresh path.
 

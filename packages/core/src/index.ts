@@ -1,14 +1,17 @@
 export * from './attrs.js'
 export * from './bridge.js'
 export * from './overlay/index.js'
+export * from './permissions.js'
 export * from './protocol.js'
 export * from './scanner.js'
 
+import type { PveDocRef, PvePermissionSummary } from './protocol.js'
 import type { ScannedRegion } from './scanner.js'
 
-import { PVE_ATTR } from './attrs.js'
+import { parseScope, PVE_ATTR } from './attrs.js'
 import { SiteBridge } from './bridge.js'
 import { OverlayRenderer } from './overlay/index.js'
+import { canUpdatePath } from './permissions.js'
 import { RegionRegistry, toProtocolRegions } from './scanner.js'
 
 export type VisualEditingOptions = {
@@ -29,6 +32,22 @@ const humanizePathTail = (path: string): string => {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 
+const scopeMatchesDoc = (scope: string, docs: PveDocRef[]): boolean => {
+  const parsed = parseScope(scope)
+  if (!parsed) {
+    return false
+  }
+  return docs.some((doc) => {
+    if ('global' in parsed) {
+      return doc.global === parsed.global
+    }
+    return (
+      doc.collection === parsed.collection &&
+      (parsed.id === undefined || doc.id === undefined || doc.id === parsed.id)
+    )
+  })
+}
+
 /**
  * Entry point for the site SDK. Wires bridge + scanner + overlay; stays fully
  * inert until the admin sends a valid `hello`. Returns a teardown function.
@@ -40,6 +59,9 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
   let editMode = false
   let hovered: null | ScannedRegion = null
   let labels: Record<string, string> = {}
+  let docs: PveDocRef[] = []
+  let permissions: null | PvePermissionSummary = null
+  let rowBlockTypes = new Map<string, string>()
 
   const regionLabel = (region: ScannedRegion): string => {
     if (region.kind === 'row' && region.blockType) {
@@ -48,11 +70,33 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     return humanizePathTail(region.path)
   }
 
+  const indexRowBlockTypes = (regions: ScannedRegion[]): void => {
+    rowBlockTypes = new Map()
+    for (const region of regions) {
+      if (region.kind === 'row' && region.blockType) {
+        rowBlockTypes.set(region.path, region.blockType)
+      }
+    }
+  }
+
+  const getBlockType = (rowPath: string): string | undefined => rowBlockTypes.get(rowPath)
+
+  // Affordance-level gating only (SPEC §10) — the admin form and server access
+  // control remain authoritative for anything the iframe requests.
+  const isEditable = (region: ScannedRegion): boolean => {
+    if (!scopeMatchesDoc(region.scope, docs)) {
+      return false
+    }
+    return permissions ? canUpdatePath(region.path, permissions, getBlockType) : true
+  }
+
   const registry = new RegionRegistry({
     onChange: (regions) => {
+      indexRowBlockTypes(regions)
       bridge.send('regions', { regions: toProtocolRegions(regions) })
     },
     onRescan: (regions) => {
+      indexRowBlockTypes(regions)
       if (!hovered) {
         return
       }
@@ -85,8 +129,19 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     if (!(target instanceof Element)) {
       return null
     }
-    const element = target.closest(`[${PVE_ATTR.field}]`)
-    return element ? (registry.regionForElement(element) ?? null) : null
+    // Nearest editable marked ancestor: a denied leaf inside an allowed row
+    // still selects the row.
+    for (
+      let element = target.closest(`[${PVE_ATTR.field}]`);
+      element;
+      element = element.parentElement?.closest(`[${PVE_ATTR.field}]`) ?? null
+    ) {
+      const region = registry.regionForElement(element)
+      if (region && isEditable(region)) {
+        return region
+      }
+    }
+    return null
   }
 
   const onPointerMove = (event: PointerEvent): void => {
@@ -128,6 +183,30 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     }
   }
 
+  const flashPath = (path: string): void => {
+    if (!editMode) {
+      return
+    }
+    const kindOrder = { container: 2, field: 0, row: 1 } as const
+    const candidates = registry.regions
+      .filter((region) => region.path === path && region.element.isConnected)
+      .sort(
+        (a, b) =>
+          Number(scopeMatchesDoc(b.scope, docs)) - Number(scopeMatchesDoc(a.scope, docs)) ||
+          kindOrder[a.kind] - kindOrder[b.kind],
+      )
+    const target = candidates[0]
+    if (!target) {
+      return
+    }
+    const rect = target.element.getBoundingClientRect()
+    const outOfView = rect.bottom < 0 || rect.top > window.innerHeight
+    if (outOfView && typeof target.element.scrollIntoView === 'function') {
+      target.element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    overlay.flash(target.element)
+  }
+
   const offMessage = bridge.onMessage((message) => {
     if (options.debug) {
       console.debug('[payload-inline-visual-editor]', message.type, message.payload)
@@ -136,8 +215,13 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
       case 'payload-visual-editor:edit-mode':
         setEditMode(message.payload.enabled)
         break
+      case 'payload-visual-editor:focus':
+        flashPath(message.payload.path)
+        break
       case 'payload-visual-editor:hello':
         labels = message.payload.labels ?? {}
+        docs = message.payload.docs ?? []
+        permissions = message.payload.permissions ?? null
         if (message.payload.editMode && editMode) {
           // New admin session while already editing: re-report to the new session
           bridge.send('regions', { regions: toProtocolRegions(registry.regions) })
