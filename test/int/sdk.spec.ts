@@ -207,6 +207,173 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     expect(box.style.display).toBe('none')
   })
 
+  it('shows a row chip on hover and posts ops for its actions (M3)', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+    post.mockClear()
+
+    document.querySelector('[data-pve-row]')!.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    const chip = document.querySelector('[data-pve-chip]') as HTMLElement
+    expect(chip.style.display).toBe('flex')
+    // Single row in the container: move is pointless, the rest are offered
+    const actions = [...chip.querySelectorAll('[data-pve-chip-action]')].map((el) =>
+      el.getAttribute('data-pve-chip-action'),
+    )
+    expect(actions).toEqual(['add-above', 'add-below', 'duplicate', 'remove'])
+
+    post.mockClear()
+    ;(chip.querySelector('[data-pve-chip-action="duplicate"]') as HTMLElement).click()
+    const messages = outgoing(post)
+    expect(messages.map((m) => m.type)).toEqual(['payload-visual-editor:op'])
+    expect(messages[0]!.payload).toMatchObject({
+      containerPath: 'layout',
+      op: 'duplicate',
+      rowId: 'row1',
+      rowIndex: 0,
+      scope: 'collection:pages;id:abc',
+    })
+
+    post.mockClear()
+    ;(chip.querySelector('[data-pve-chip-action="add-below"]') as HTMLElement).click()
+    expect(outgoing(post)[0]!.payload).toMatchObject({ containerPath: 'layout', op: 'add', rowIndex: 1 })
+  })
+
+  it('shows the chip when hovering a field inside the row', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    document
+      .querySelector('[data-pve-field="layout.0.heading"]')!
+      .dispatchEvent(new Event('pointermove', { bubbles: true }))
+    expect((document.querySelector('[data-pve-chip]') as HTMLElement).style.display).toBe('flex')
+  })
+
+  it('honors blockOps from hello when rendering chip buttons', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', {
+      ...helloPayload,
+      blockOps: { add: false, duplicate: false, move: true, remove: true },
+    })
+
+    document.querySelector('[data-pve-row]')!.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    const chip = document.querySelector('[data-pve-chip]') as HTMLElement
+    const actions = [...chip.querySelectorAll('[data-pve-chip-action]')].map((el) =>
+      el.getAttribute('data-pve-chip-action'),
+    )
+    expect(actions).toEqual(['remove'])
+  })
+
+  it('offers no chip to read-only users', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', {
+      ...helloPayload,
+      permissions: { canPublish: false, canSave: false, fields: {} },
+    })
+
+    document.querySelector('[data-pve-row]')!.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    expect((document.querySelector('[data-pve-chip]') as HTMLElement).style.display).toBe('none')
+  })
+
+  it('shows a pending shimmer after op-ack until the page re-renders', async () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    document.querySelector('[data-pve-row]')!.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    post.mockClear()
+    const chip = document.querySelector('[data-pve-chip]') as HTMLElement
+    ;(chip.querySelector('[data-pve-chip-action="remove"]') as HTMLElement).click()
+    const { opId } = outgoing(post)[0]!.payload as { opId: string }
+
+    sendFromAdmin('op-ack', { ok: true, opId })
+    expect(document.querySelector('[data-pve-pending]')).toBeNull()
+    // Shimmer only starts if the page hasn't re-rendered shortly after the ack (SSR mode)
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    expect(document.querySelector('[data-pve-pending]')).not.toBeNull()
+
+    // The live-preview re-render lands → region set changes → shimmer clears
+    document.querySelector('[data-pve-row]')!.remove()
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(document.querySelector('[data-pve-pending]')).toBeNull()
+  })
+
+  it('skips the shimmer when the re-render happens quickly (client mode)', async () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    document.querySelector('[data-pve-row]')!.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    post.mockClear()
+    const chip = document.querySelector('[data-pve-chip]') as HTMLElement
+    ;(chip.querySelector('[data-pve-chip-action="duplicate"]') as HTMLElement).click()
+    const { opId } = outgoing(post)[0]!.payload as { opId: string }
+
+    sendFromAdmin('op-ack', { ok: true, opId })
+    // Simulated client-mode re-render well inside the shimmer delay
+    const clone = document.querySelector('[data-pve-row]')!.cloneNode(true) as Element
+    clone.setAttribute('data-pve-field', 'layout.1')
+    clone.setAttribute('data-pve-row', 'row2')
+    document.querySelector('[data-pve-container]')!.appendChild(clone)
+    await new Promise((resolve) => setTimeout(resolve, 450))
+    expect(document.querySelector('[data-pve-pending]')).toBeNull()
+  })
+
+  it('renders an add affordance over empty containers and posts the add op', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    document
+      .querySelector('[data-pve-scope]')!
+      .insertAdjacentHTML('beforeend', '<div data-pve-container="sidebar"></div>')
+    sendFromAdmin('hello', helloPayload)
+    post.mockClear()
+
+    const affordances = document.querySelectorAll('[data-pve-empty-add]')
+    expect(affordances).toHaveLength(1)
+    ;(affordances[0] as HTMLElement).click()
+    const messages = outgoing(post)
+    expect(messages.map((m) => m.type)).toEqual(['payload-visual-editor:op'])
+    expect(messages[0]!.payload).toMatchObject({ containerPath: 'sidebar', op: 'add', rowIndex: 0 })
+  })
+
+  it('reorders rows via drag with a drop indicator', () => {
+    document.body.innerHTML = `
+      <main data-pve-scope="collection:pages;id:abc">
+        <div data-pve-container="layout">
+          <section data-pve-field="layout.0" data-pve-row="row1" data-pve-block-type="hero">A</section>
+          <section data-pve-field="layout.1" data-pve-row="row2" data-pve-block-type="content">B</section>
+          <section data-pve-field="layout.2" data-pve-row="row3" data-pve-block-type="cta">C</section>
+        </div>
+      </main>
+    `
+    const rows = [...document.querySelectorAll('[data-pve-row]')]
+    rows.forEach((row, index) => {
+      ;(row as HTMLElement).getBoundingClientRect = () =>
+        ({ bottom: index * 100 + 100, height: 100, left: 0, right: 400, top: index * 100, width: 400 }) as DOMRect
+    })
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    rows[0]!.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    const chip = document.querySelector('[data-pve-chip]') as HTMLElement
+    const handle = chip.querySelector('[data-pve-chip-action="drag"]') as HTMLElement
+    post.mockClear()
+
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }))
+    window.dispatchEvent(new MouseEvent('pointermove', { cancelable: true, clientX: 10, clientY: 260 }))
+    const indicator = document.querySelector('[data-pve-drop-indicator]') as HTMLElement
+    expect(indicator.style.display).toBe('block')
+    expect(indicator.style.top).toBe('298.5px')
+    window.dispatchEvent(new MouseEvent('pointerup', { clientX: 10, clientY: 260 }))
+
+    expect(indicator.style.display).toBe('none')
+    const messages = outgoing(post)
+    expect(messages.map((m) => m.type)).toEqual(['payload-visual-editor:op'])
+    expect(messages[0]!.payload).toMatchObject({
+      containerPath: 'layout',
+      moveFromIndex: 0,
+      moveToIndex: 2,
+      op: 'move',
+      rowId: 'row1',
+    })
+  })
+
   it('tears down the overlay on edit-mode off and full teardown', () => {
     teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
     sendFromAdmin('hello', helloPayload)

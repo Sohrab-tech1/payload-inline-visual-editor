@@ -33,6 +33,10 @@ export type PveRegion = {
 
 export type PveOpKind = 'add' | 'duplicate' | 'move' | 'remove'
 
+export type PveBlockOps = Record<PveOpKind, boolean>
+
+export const ALL_BLOCK_OPS: PveBlockOps = { add: true, duplicate: true, move: true, remove: true }
+
 export type PveOp = {
   blockType?: string
   containerPath: string
@@ -52,6 +56,8 @@ export type PveMessagePayloads = {
   'edit-mode': { enabled: boolean }
   focus: { path: string }
   hello: {
+    /** Ops enabled by plugin config; omitted = all enabled. */
+    blockOps?: PveBlockOps
     breakpoint?: string
     docs: PveDocRef[]
     editMode: boolean

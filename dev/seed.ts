@@ -67,6 +67,19 @@ export const seed = async (payload: Payload): Promise<void> => {
     },
   })
 
+  await payload.create({
+    collection: 'pages',
+    data: {
+      _status: 'published',
+      layout: [
+        { blockType: 'hero', heading: 'SSR mode', subheading: 'Previewed through RefreshRouteOnSave.' },
+        { blockType: 'cta', label: 'Get started', url: '/admin' },
+      ],
+      slug: 'ssr-home',
+      title: 'SSR Home',
+    },
+  })
+
   await payload.updateGlobal({
     slug: 'header',
     data: {

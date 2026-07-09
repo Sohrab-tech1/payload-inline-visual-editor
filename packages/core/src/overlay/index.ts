@@ -1,4 +1,4 @@
-const LAYER_ATTR = 'data-pve-overlay'
+import { PVE_OVERLAY_ATTR as LAYER_ATTR } from '../attrs.js'
 
 const HIGHLIGHT_COLOR = '#2563eb'
 const HIGHLIGHT_BG = 'rgba(37, 99, 235, 0.08)'
@@ -25,6 +25,7 @@ export class OverlayRenderer {
   private label: HTMLDivElement | null = null
   private layer: HTMLDivElement | null = null
   private rafId: null | number = null
+  private readonly refreshHooks = new Set<() => void>()
   private resizeObserver: null | ResizeObserver = null
 
   private readonly scheduleRefresh = (): void => {
@@ -39,6 +40,24 @@ export class OverlayRenderer {
 
   get mounted(): boolean {
     return this.layer !== null
+  }
+
+  /** The overlay layer element — sub-views (chips, indicators) append here. */
+  get layerElement(): HTMLElement | null {
+    return this.layer
+  }
+
+  /** Runs on every refresh (scroll/resize/hover changes) while mounted. */
+  addRefreshHook(hook: () => void): () => void {
+    this.refreshHooks.add(hook)
+    return () => {
+      this.refreshHooks.delete(hook)
+    }
+  }
+
+  /** Whether a node belongs to the overlay's own UI (chips, buttons, …). */
+  layerContains(node: unknown): boolean {
+    return node instanceof Node && this.layer !== null && this.layer.contains(node)
   }
 
   mount(doc: Document = document): void {
@@ -111,6 +130,9 @@ export class OverlayRenderer {
   refresh(): void {
     if (!this.box || !this.label) {
       return
+    }
+    for (const hook of this.refreshHooks) {
+      hook()
     }
     if (this.flashBox) {
       if (this.flashTarget?.isConnected) {

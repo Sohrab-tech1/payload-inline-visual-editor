@@ -200,7 +200,7 @@ type PveMessage<T extends string, P> = {
 
 | Direction | `type` suffix | Payload |
 |---|---|---|
-| admin→iframe | `hello` | `{ editMode, docs: [{collection?, global?, id?}], locale, breakpoint, permissions: { canSave, canPublish, fields: {[path]: {update: boolean}} }, labels: {[blockSlug]: string} }` — sent on iframe ready/load |
+| admin→iframe | `hello` | `{ editMode, docs: [{collection?, global?, id?}], locale, breakpoint, permissions: { canSave, canPublish, fields: {[path]: {update: boolean}} }, labels: {[blockSlug]: string}, blockOps?: {add, duplicate, move, remove} }` — sent on iframe ready/load; `blockOps` mirrors plugin config (omitted = all enabled) |
 | iframe→admin | `hello-ack` | `{ sdkVersion, draft?: boolean }` — SDK begins scanning; `draft:false` triggers an admin warning banner |
 | admin→iframe | `edit-mode` | `{ enabled }` |
 | iframe→admin | `regions` | `{ regions: Region[] }` — debounced re-report after mutations; `Region = { regionId, scope, kind: 'field'\|'row'\|'container', path, rowId?, blockType? }` (no rects — overlay is in-iframe) |

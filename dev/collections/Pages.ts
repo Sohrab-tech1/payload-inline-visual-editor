@@ -21,7 +21,10 @@ export const Pages: CollectionConfig = {
         { name: 'tablet', label: 'Tablet', width: 768, height: 1024 },
         { name: 'desktop', label: 'Desktop', width: 1440, height: 900 },
       ],
-      url: ({ data }) => `${serverURL}/client-mode/${data?.slug ?? ''}`,
+      // Pages with an `ssr-` slug prefix preview through the RefreshRouteOnSave
+      // route — exercises SSR-mode op latency/pending states (SPEC §8)
+      url: ({ data }) =>
+        `${serverURL}/${String(data?.slug ?? '').startsWith('ssr-') ? 'ssr-mode' : 'client-mode'}/${data?.slug ?? ''}`,
     },
     useAsTitle: 'title',
   },

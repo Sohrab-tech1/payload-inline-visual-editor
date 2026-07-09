@@ -1,6 +1,6 @@
 import type { PveRegion } from './protocol.js'
 
-import { PVE_ATTR } from './attrs.js'
+import { PVE_ATTR, PVE_OVERLAY_ATTR } from './attrs.js'
 
 export type ScannedRegion = PveRegion & { element: Element }
 
@@ -63,6 +63,12 @@ export type RegionRegistryOptions = {
 
 const DEFAULT_DEBOUNCE_MS = 100
 
+const isOverlayMutation = (mutation: MutationRecord): boolean => {
+  const target = mutation.target
+  const element = target instanceof Element ? target : target.parentElement
+  return element?.closest(`[${PVE_OVERLAY_ATTR}]`) != null
+}
+
 /**
  * Live view of the page's marked regions. Rescans on DOM mutations (debounced)
  * and notifies `onChange` only when the region set actually changed.
@@ -101,7 +107,14 @@ export class RegionRegistry {
       return
     }
     this.rescan()
-    this.observer = new MutationObserver(() => this.scheduleRescan())
+    // Overlay-internal writes (chip/shimmer positioning) must not re-trigger
+    // rescans — the overlay repositions on every rescan, which would loop.
+    this.observer = new MutationObserver((mutations) => {
+      if (mutations.every(isOverlayMutation)) {
+        return
+      }
+      this.scheduleRescan()
+    })
     this.observer.observe(this.root instanceof Document ? this.root.documentElement : (this.root as Node), {
       attributes: true,
       childList: true,

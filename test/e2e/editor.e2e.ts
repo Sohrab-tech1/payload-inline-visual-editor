@@ -2,18 +2,16 @@ import type { FrameLocator, Page } from '@playwright/test'
 
 import { expect, test } from '@playwright/test'
 
-const openHomePageInLivePreview = async (page: Page, email: string): Promise<FrameLocator> => {
+const login = async (page: Page, email: string): Promise<void> => {
   await page.goto('/admin/login')
   await page.fill('#field-email', email)
   await page.fill('#field-password', 'test')
   await page.click('button[type="submit"]')
   await page.waitForURL('**/admin')
+}
 
-  await page.goto('/admin/collections/pages')
-  await page.getByRole('link', { name: 'Home' }).first().click()
-  await page.waitForURL('**/admin/collections/pages/**')
-
-  // Enter Live Preview (stock toggler) unless a saved preference already enabled it
+// Enter Live Preview (stock toggler) unless a saved preference already enabled it
+const enterLivePreview = async (page: Page): Promise<FrameLocator> => {
   const toggler = page.locator('#live-preview-toggler')
   await toggler.waitFor()
   await page.waitForLoadState('networkidle')
@@ -21,7 +19,15 @@ const openHomePageInLivePreview = async (page: Page, email: string): Promise<Fra
   if (!isPreviewing) {
     await toggler.click()
   }
-  const frame = page.frameLocator('iframe#live-preview-iframe')
+  return page.frameLocator('iframe#live-preview-iframe')
+}
+
+const openHomePageInLivePreview = async (page: Page, email: string): Promise<FrameLocator> => {
+  await login(page, email)
+  await page.goto('/admin/collections/pages')
+  await page.getByRole('link', { name: 'Home', exact: true }).first().click()
+  await page.waitForURL('**/admin/collections/pages/**')
+  const frame = await enterLivePreview(page)
   await expect(frame.locator('h1')).toContainText('Visual editing for Payload')
   return frame
 }
@@ -40,6 +46,42 @@ const ensureHeroRowExpanded = async (page: Page): Promise<void> => {
     await page.locator('#field-layout .collapsible__toggle').first().click()
     await expect(heading).toBeVisible()
   }
+}
+
+// Block ops mutate document state (autosaved drafts) — each mutating test gets
+// its own page so tests stay independent and re-runnable.
+const createTestPage = async (page: Page, slugPrefix: string): Promise<string> => {
+  const slug = `${slugPrefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+  const response = await page.request.post('/api/pages', {
+    data: {
+      _status: 'published',
+      layout: [
+        { blockType: 'hero', heading: 'E2E hero', subheading: 'Block ops fixture' },
+        { blockType: 'cta', label: 'E2E button', url: '/admin' },
+      ],
+      slug,
+      title: `E2E ${slug}`,
+    },
+  })
+  expect(response.ok()).toBe(true)
+  const { doc } = (await response.json()) as { doc: { id: number | string } }
+  return String(doc.id)
+}
+
+const openTestPage = async (page: Page, slugPrefix = 'e2e'): Promise<FrameLocator> => {
+  const id = await createTestPage(page, slugPrefix)
+  await page.goto(`/admin/collections/pages/${id}`)
+  const frame = await enterLivePreview(page)
+  await expect(frame.locator('h1')).toContainText('E2E hero')
+  await enableEditMode(page)
+  return frame
+}
+
+const hoverRowChip = async (frame: FrameLocator, rowSelector: string) => {
+  await frame.locator(rowSelector).hover({ position: { x: 8, y: 8 } })
+  const chip = frame.locator('[data-pve-chip]')
+  await expect(chip).toBeVisible()
+  return chip
 }
 
 test.describe('visual editor', () => {
@@ -120,7 +162,114 @@ test.describe('visual editor', () => {
     await frame.locator('[data-pve-field="layout.0.heading"]').hover()
     await expect(frame.locator('[data-pve-hover-box]')).toBeHidden()
 
+    // M3: no row chips either
+    await frame.locator('[data-pve-block-type="hero"]').hover({ position: { x: 8, y: 8 } })
+    await expect(frame.locator('[data-pve-chip]')).toBeHidden()
+
     await frame.locator('[data-pve-field="layout.0.heading"]').click()
     await expect(page.locator('#field-layout__0__heading')).not.toBeFocused()
+  })
+
+  // M3 exit criteria (SPEC §13): row chips, BlocksDrawer add flow,
+  // duplicate/remove, drag-reorder + drop indicators, SSR pending states
+  test('chip add opens the native BlocksDrawer and inserts the picked block', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const frame = await openTestPage(page)
+
+    const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
+    await chip.locator('[data-pve-chip-action="add-below"]').click()
+
+    // The native block picker opens in the admin panel
+    const contentCard = page.locator('button.thumbnail-card', { hasText: 'Content' })
+    await expect(contentCard).toBeVisible()
+    await contentCard.click()
+
+    const layoutRows = frame.locator('[data-pve-container="layout"] [data-pve-row]')
+    await expect(layoutRows).toHaveCount(3)
+    await expect(layoutRows.nth(1)).toHaveAttribute('data-pve-block-type', 'content')
+  })
+
+  test('chip duplicate clones the row', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const frame = await openTestPage(page)
+
+    const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
+    await chip.locator('[data-pve-chip-action="duplicate"]').click()
+
+    const heroes = frame.locator('[data-pve-block-type="hero"]')
+    await expect(heroes).toHaveCount(2)
+    await expect(heroes.nth(1).locator('h1')).toHaveText('E2E hero')
+  })
+
+  test('chip remove confirms first; an emptied container gets an add affordance', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const frame = await openTestPage(page)
+
+    let chip = await hoverRowChip(frame, '[data-pve-block-type="cta"]')
+    await chip.locator('[data-pve-chip-action="remove"]').click()
+    const confirm = page.locator('.confirmation-modal')
+    await expect(confirm).toContainText('Are you sure you want to remove this Cta?')
+    await confirm.getByRole('button', { name: 'Remove' }).click()
+    await expect(frame.locator('[data-pve-block-type="cta"]')).toHaveCount(0)
+
+    const layoutRows = frame.locator('[data-pve-container="layout"] [data-pve-row]')
+    chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
+    await chip.locator('[data-pve-chip-action="remove"]').click()
+    await page.locator('.confirmation-modal').getByRole('button', { name: 'Remove' }).click()
+    await expect(layoutRows).toHaveCount(0)
+
+    // Empty container → persistent add affordance → native picker → new row
+    const addButton = frame.locator('[data-pve-empty-add]')
+    await expect(addButton).toBeVisible()
+    await addButton.click()
+    const heroCard = page.locator('button.thumbnail-card', { hasText: 'Hero' })
+    await expect(heroCard).toBeVisible()
+    await heroCard.click()
+    await expect(layoutRows).toHaveCount(1)
+  })
+
+  test('cancelling the remove confirmation keeps the row', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const frame = await openTestPage(page)
+
+    const chip = await hoverRowChip(frame, '[data-pve-block-type="cta"]')
+    await chip.locator('[data-pve-chip-action="remove"]').click()
+    await page.locator('.confirmation-modal').getByRole('button', { name: 'Cancel' }).click()
+    await expect(frame.locator('[data-pve-block-type="cta"]')).toHaveCount(1)
+  })
+
+  test('drag handle reorders rows with a drop indicator', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const frame = await openTestPage(page)
+
+    const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
+    const handle = chip.locator('[data-pve-chip-action="drag"]')
+    const handleBox = (await handle.boundingBox())!
+    const ctaBox = (await frame.locator('[data-pve-block-type="cta"]').boundingBox())!
+
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(ctaBox.x + 20, ctaBox.y + ctaBox.height - 2, { steps: 8 })
+    await expect(frame.locator('[data-pve-drop-indicator]')).toBeVisible()
+    await page.mouse.up()
+
+    await expect(frame.locator('[data-pve-drop-indicator]')).toBeHidden()
+    await expect(
+      frame.locator('[data-pve-container="layout"] [data-pve-row]').first(),
+    ).toHaveAttribute('data-pve-block-type', 'cta')
+  })
+
+  test('SSR mode shows a pending shimmer until the refreshed page lands', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    // The ssr- slug prefix routes Live Preview through /ssr-mode (RefreshRouteOnSave)
+    const frame = await openTestPage(page, 'ssr-e2e')
+
+    const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
+    await chip.locator('[data-pve-chip-action="duplicate"]').click()
+
+    // No instant data stream in SSR mode: the shimmer bridges autosave + refresh
+    await expect(frame.locator('[data-pve-pending]')).toBeVisible({ timeout: 5_000 })
+    await expect(frame.locator('[data-pve-block-type="hero"]')).toHaveCount(2, { timeout: 15_000 })
+    await expect(frame.locator('[data-pve-pending]')).toHaveCount(0)
   })
 })
