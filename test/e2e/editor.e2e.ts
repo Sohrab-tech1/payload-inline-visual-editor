@@ -22,11 +22,14 @@ const enterLivePreview = async (page: Page): Promise<FrameLocator> => {
   return page.frameLocator('iframe#live-preview-iframe')
 }
 
+// Navigate by id (list-view order shifts as e2e fixture pages accumulate)
 const openHomePageInLivePreview = async (page: Page, email: string): Promise<FrameLocator> => {
   await login(page, email)
-  await page.goto('/admin/collections/pages')
-  await page.getByRole('link', { name: 'Home', exact: true }).first().click()
-  await page.waitForURL('**/admin/collections/pages/**')
+  const response = await page.request.get('/api/pages?where[slug][equals]=home&limit=1&depth=0')
+  expect(response.ok()).toBe(true)
+  const { docs } = (await response.json()) as { docs: { id: number | string }[] }
+  expect(docs).toHaveLength(1)
+  await page.goto(`/admin/collections/pages/${docs[0]!.id}`)
   const frame = await enterLivePreview(page)
   await expect(frame.locator('h1')).toContainText('Visual editing for Payload')
   return frame
@@ -50,6 +53,8 @@ const ensureHeroRowExpanded = async (page: Page): Promise<void> => {
 
 // Block ops mutate document state (autosaved drafts) — each mutating test gets
 // its own page so tests stay independent and re-runnable.
+const createdPageIds: string[] = []
+
 const createTestPage = async (page: Page, slugPrefix: string): Promise<string> => {
   const slug = `${slugPrefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
   const response = await page.request.post('/api/pages', {
@@ -65,16 +70,35 @@ const createTestPage = async (page: Page, slugPrefix: string): Promise<string> =
   })
   expect(response.ok()).toBe(true)
   const { doc } = (await response.json()) as { doc: { id: number | string } }
+  createdPageIds.push(String(doc.id))
   return String(doc.id)
 }
 
-const openTestPage = async (page: Page, slugPrefix = 'e2e'): Promise<FrameLocator> => {
+// Fixture pages would otherwise accumulate in the dev DB across runs
+test.afterEach(async ({ page }) => {
+  while (createdPageIds.length > 0) {
+    const id = createdPageIds.pop()
+    await page.request.delete(`/api/pages/${id}`).catch(() => undefined)
+  }
+})
+
+const openTestPage = async (
+  page: Page,
+  slugPrefix = 'e2e',
+): Promise<{ frame: FrameLocator; id: string }> => {
   const id = await createTestPage(page, slugPrefix)
   await page.goto(`/admin/collections/pages/${id}`)
   const frame = await enterLivePreview(page)
   await expect(frame.locator('h1')).toContainText('E2E hero')
   await enableEditMode(page)
-  return frame
+  return { frame, id }
+}
+
+const publishedLayout = async (page: Page, id: string): Promise<string[]> => {
+  const response = await page.request.get(`/api/pages/${id}?draft=false&depth=0`)
+  expect(response.ok()).toBe(true)
+  const { layout } = (await response.json()) as { layout: { blockType: string }[] }
+  return layout.map((block) => block.blockType)
 }
 
 const hoverRowChip = async (frame: FrameLocator, rowSelector: string) => {
@@ -174,7 +198,7 @@ test.describe('visual editor', () => {
   // duplicate/remove, drag-reorder + drop indicators, SSR pending states
   test('chip add opens the native BlocksDrawer and inserts the picked block', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
-    const frame = await openTestPage(page)
+    const { frame } = await openTestPage(page)
 
     const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
     await chip.locator('[data-pve-chip-action="add-below"]').click()
@@ -191,7 +215,7 @@ test.describe('visual editor', () => {
 
   test('chip duplicate clones the row', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
-    const frame = await openTestPage(page)
+    const { frame } = await openTestPage(page)
 
     const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
     await chip.locator('[data-pve-chip-action="duplicate"]').click()
@@ -203,7 +227,7 @@ test.describe('visual editor', () => {
 
   test('chip remove confirms first; an emptied container gets an add affordance', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
-    const frame = await openTestPage(page)
+    const { frame } = await openTestPage(page)
 
     let chip = await hoverRowChip(frame, '[data-pve-block-type="cta"]')
     await chip.locator('[data-pve-chip-action="remove"]').click()
@@ -230,7 +254,7 @@ test.describe('visual editor', () => {
 
   test('cancelling the remove confirmation keeps the row', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
-    const frame = await openTestPage(page)
+    const { frame } = await openTestPage(page)
 
     const chip = await hoverRowChip(frame, '[data-pve-block-type="cta"]')
     await chip.locator('[data-pve-chip-action="remove"]').click()
@@ -240,7 +264,7 @@ test.describe('visual editor', () => {
 
   test('drag handle reorders rows with a drop indicator', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
-    const frame = await openTestPage(page)
+    const { frame } = await openTestPage(page)
 
     const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
     const handle = chip.locator('[data-pve-chip-action="drag"]')
@@ -262,7 +286,7 @@ test.describe('visual editor', () => {
   test('SSR mode shows a pending shimmer until the refreshed page lands', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
     // The ssr- slug prefix routes Live Preview through /ssr-mode (RefreshRouteOnSave)
-    const frame = await openTestPage(page, 'ssr-e2e')
+    const { frame } = await openTestPage(page, 'ssr-e2e')
 
     const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
     await chip.locator('[data-pve-chip-action="duplicate"]').click()
@@ -271,5 +295,24 @@ test.describe('visual editor', () => {
     await expect(frame.locator('[data-pve-pending]')).toBeVisible({ timeout: 5_000 })
     await expect(frame.locator('[data-pve-block-type="hero"]')).toHaveCount(2, { timeout: 15_000 })
     await expect(frame.locator('[data-pve-pending]')).toHaveCount(0)
+  })
+
+  // SPEC §12: save → published document correct — ops only touch the working
+  // draft until the editor publishes, and publishing lands them verbatim.
+  test('publishing after block ops lands them in the published document', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const { frame, id } = await openTestPage(page, 'e2e-publish')
+
+    const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
+    await chip.locator('[data-pve-chip-action="duplicate"]').click()
+    await expect(frame.locator('[data-pve-block-type="hero"]')).toHaveCount(2)
+
+    // The op autosaves to the draft; the published version is untouched
+    expect(await publishedLayout(page, id)).toEqual(['hero', 'cta'])
+
+    await page.getByRole('button', { name: 'Publish changes' }).click()
+    await expect(page.locator('.payload-toast-container')).toContainText(/updated successfully/i)
+
+    expect(await publishedLayout(page, id)).toEqual(['hero', 'hero', 'cta'])
   })
 })

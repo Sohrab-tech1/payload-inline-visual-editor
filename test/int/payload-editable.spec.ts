@@ -17,6 +17,9 @@ describe('payloadEditable', () => {
     expect(payloadEditable.scope({ collection: 'pages', id: '1' })).toEqual({
       'data-pve-scope': 'collection:pages;id:1',
     })
+    expect(payloadEditable.scope({ collection: 'pages', id: 7 })).toEqual({
+      'data-pve-scope': 'collection:pages;id:7',
+    })
   })
 
   it('emits nothing when disabled (production HTML stays clean)', () => {

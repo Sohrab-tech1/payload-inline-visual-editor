@@ -1,0 +1,36 @@
+# @payload-inline-visual-editor/core
+
+Framework-agnostic site SDK for [payload-inline-visual-editor](https://github.com/what-digital/payload-inline-visual-editor) — inline visual editing for Payload CMS 3.x. Vanilla TypeScript, zero runtime dependencies.
+
+Most sites want a framework adapter instead (currently [`@payload-inline-visual-editor/react`](https://www.npmjs.com/package/@payload-inline-visual-editor/react)); use this package directly for other frameworks or plain JS.
+
+## Usage
+
+Mark up editable regions with `data-pve-*` attributes (the `pveAttr` helpers return `Record<string, string>`):
+
+```ts
+import { pveAttr } from '@payload-inline-visual-editor/core'
+
+pveAttr.scope({ collection: 'pages', id: page.id })   // document scope on the outermost element
+pveAttr.field('layout.0.heading')                     // editable leaf field
+pveAttr.row('layout.0', { id: block.id, blockType: block.blockType }) // array/blocks row wrapper
+pveAttr.container('layout')                           // array/blocks container
+```
+
+Mount the SDK on pages loaded through Payload Live Preview:
+
+```ts
+import { initVisualEditing } from '@payload-inline-visual-editor/core'
+
+if (window.self !== window.top) {
+  const teardown = initVisualEditing({ serverURL: 'https://cms.example.com' })
+}
+```
+
+The SDK stays fully inert until it receives a validated handshake from the admin panel at `serverURL`. Requires the [`payload-inline-visual-editor`](https://www.npmjs.com/package/payload-inline-visual-editor) plugin on the Payload side.
+
+See the [full documentation](https://github.com/what-digital/payload-inline-visual-editor#readme).
+
+## License
+
+MIT

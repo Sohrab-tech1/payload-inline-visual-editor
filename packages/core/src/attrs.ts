@@ -9,20 +9,28 @@ export const PVE_ATTR = {
   scope: 'data-pve-scope',
 } as const
 
-export type PveScopeRef = { collection: string; id?: string } | { global: string }
+export type PveScopeRef = { collection: string; id?: null | number | string } | { global: string }
 
 export type PveAttrRecord = Record<string, string>
 
+/**
+ * `id`/`blockType` accept the nullable shapes Payload's generated types use
+ * (`id?: string | null`), so rows can be passed straight through. A missing id
+ * at runtime degrades the row to a plain field (with a dev-mode warning) —
+ * block operations need the stable row id.
+ */
 export type PveRowRef = {
-  blockType?: string
-  id: string
+  blockType?: null | string
+  id: null | string | undefined
 }
 
 export const serializeScope = (scope: PveScopeRef): string => {
   if ('global' in scope) {
     return `global:${scope.global}`
   }
-  return scope.id ? `collection:${scope.collection};id:${scope.id}` : `collection:${scope.collection}`
+  return scope.id != null && scope.id !== ''
+    ? `collection:${scope.collection};id:${scope.id}`
+    : `collection:${scope.collection}`
 }
 
 export const parseScope = (value: string): null | PveScopeRef => {

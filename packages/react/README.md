@@ -1,0 +1,46 @@
+# @payload-inline-visual-editor/react
+
+React/Next adapter for [payload-inline-visual-editor](https://github.com/what-digital/payload-inline-visual-editor) — inline visual editing for Payload CMS 3.x.
+
+## Usage
+
+Mark up editable regions (RSC/SSR-safe — the helpers return plain string props):
+
+```tsx
+import { payloadEditable } from '@payload-inline-visual-editor/react'
+
+<main {...payloadEditable.scope({ collection: 'pages', id: page.id })}>
+  <div {...payloadEditable.container('layout')}>
+    {page.layout?.map((block, i) => (
+      <section
+        key={block.id}
+        {...payloadEditable(`layout.${i}`, { row: { id: block.id, blockType: block.blockType } })}
+      >
+        <h1 {...payloadEditable(`layout.${i}.heading`)}>{block.heading}</h1>
+      </section>
+    ))}
+  </div>
+</main>
+```
+
+Mount the SDK on pages loaded through Payload Live Preview:
+
+```tsx
+import { VisualEditing } from '@payload-inline-visual-editor/react'
+
+<VisualEditing serverURL={process.env.NEXT_PUBLIC_SERVER_URL!} draft={(await draftMode()).isEnabled} />
+```
+
+Strip attributes from production HTML:
+
+```ts
+import { configurePayloadEditable } from '@payload-inline-visual-editor/react'
+
+configurePayloadEditable({ enabled: (await draftMode()).isEnabled })
+```
+
+Requires the [`payload-inline-visual-editor`](https://www.npmjs.com/package/payload-inline-visual-editor) plugin on the Payload side. See the [full documentation](https://github.com/what-digital/payload-inline-visual-editor#readme).
+
+## License
+
+MIT

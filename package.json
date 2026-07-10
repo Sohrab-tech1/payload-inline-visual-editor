@@ -12,6 +12,6 @@
     "dev": "pnpm build && pnpm --filter dev dev",
     "watch": "pnpm --filter \"./packages/*\" --parallel -r watch",
     "test": "pnpm --filter @payload-inline-visual-editor/tests test",
-    "e2e": "pnpm --filter @payload-inline-visual-editor/tests e2e"
+    "e2e": "pnpm build && pnpm --filter @payload-inline-visual-editor/tests e2e"
   }
 }

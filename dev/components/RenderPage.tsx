@@ -60,7 +60,7 @@ const Section: React.FC<{ block: SectionBlock; path: string }> = ({ block, path 
       {block.columns?.map((column, columnIndex) => {
         const columnPath = `${path}.columns.${columnIndex}`
         return (
-          <div key={column.id ?? columnIndex} {...payloadEditable(columnPath, { row: { id: column.id ?? '' } })}>
+          <div key={column.id ?? columnIndex} {...payloadEditable(columnPath, { row: { id: column.id } })}>
             <div {...payloadEditable.container(`${columnPath}.content`)}>
               {column.content?.map((block, blockIndex) => (
                 <BlockRenderer
@@ -78,7 +78,7 @@ const Section: React.FC<{ block: SectionBlock; path: string }> = ({ block, path 
 )
 
 const BlockRenderer: React.FC<{ block: LayoutBlock; path: string }> = ({ block, path }) => {
-  const row = { blockType: block.blockType, id: block.id ?? '' }
+  const row = { blockType: block.blockType, id: block.id }
   switch (block.blockType) {
     case 'content':
       return (
@@ -120,7 +120,7 @@ export const RenderPage: React.FC<{ header: HeaderData; page: PageDoc }> = ({ he
           <a
             href={item.url}
             key={item.id ?? index}
-            {...payloadEditable(`navItems.${index}`, { row: { id: item.id ?? '' } })}
+            {...payloadEditable(`navItems.${index}`, { row: { id: item.id } })}
             style={{ color: 'inherit', textDecoration: 'none' }}
           >
             <span {...payloadEditable(`navItems.${index}.label`)}>{item.label}</span>
@@ -128,7 +128,7 @@ export const RenderPage: React.FC<{ header: HeaderData; page: PageDoc }> = ({ he
         ))}
       </nav>
     </header>
-    <main {...payloadEditable.scope({ collection: 'pages', id: String(page.id) })}>
+    <main {...payloadEditable.scope({ collection: 'pages', id: page.id })}>
       <div {...payloadEditable.container('layout')}>
         {page.layout?.map((block, index) => (
           <BlockRenderer block={block} key={block.id ?? index} path={`layout.${index}`} />

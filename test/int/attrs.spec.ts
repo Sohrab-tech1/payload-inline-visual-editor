@@ -12,6 +12,17 @@ describe('scope serialization', () => {
     expect(parseScope(serializeScope(scope))).toEqual(scope)
   })
 
+  it('serializes numeric ids (SQL adapters) as strings', () => {
+    expect(serializeScope({ collection: 'pages', id: 42 })).toBe('collection:pages;id:42')
+    expect(parseScope('collection:pages;id:42')).toEqual({ collection: 'pages', id: '42' })
+  })
+
+  it('omits null/undefined/empty ids', () => {
+    expect(serializeScope({ collection: 'pages', id: null })).toBe('collection:pages')
+    expect(serializeScope({ collection: 'pages', id: undefined })).toBe('collection:pages')
+    expect(serializeScope({ collection: 'pages', id: '' })).toBe('collection:pages')
+  })
+
   it('returns null for garbage', () => {
     expect(parseScope('')).toBeNull()
     expect(parseScope('nonsense')).toBeNull()
@@ -31,10 +42,21 @@ describe('pveAttr', () => {
     })
   })
 
+  it('accepts nullable ids/blockTypes straight from generated Payload types', () => {
+    const block: { blockType?: null | string; id?: null | string } = { blockType: 'hero', id: 'abc123' }
+    expect(pveAttr.row('layout.0', { blockType: block.blockType, id: block.id })).toEqual({
+      'data-pve-block-type': 'hero',
+      'data-pve-field': 'layout.0',
+      'data-pve-row': 'abc123',
+    })
+  })
+
   it('degrades to a plain field and warns when the row id is missing', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(pveAttr.row('layout.0', { id: '' })).toEqual({ 'data-pve-field': 'layout.0' })
-    expect(warn).toHaveBeenCalledOnce()
+    expect(pveAttr.row('layout.1', { id: null })).toEqual({ 'data-pve-field': 'layout.1' })
+    expect(pveAttr.row('layout.2', { id: undefined })).toEqual({ 'data-pve-field': 'layout.2' })
+    expect(warn).toHaveBeenCalledTimes(3)
     warn.mockRestore()
   })
 

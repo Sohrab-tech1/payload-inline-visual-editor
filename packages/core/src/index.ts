@@ -30,6 +30,12 @@ import { RegionRegistry, toProtocolRegions } from './scanner.js'
 
 export type VisualEditingOptions = {
   debug?: boolean
+  /**
+   * Whether the page is rendering draft content (e.g. Next `draftMode().isEnabled`).
+   * Reported to the admin, which warns when the preview shows published-only
+   * content — edits would not appear until published (SPEC §10).
+   */
+  draft?: boolean
   serverURL: string
 }
 
@@ -87,7 +93,7 @@ const randomOpId = (): string => {
  * inert until the admin sends a valid `hello`. Returns a teardown function.
  */
 export const initVisualEditing = (options: VisualEditingOptions): (() => void) => {
-  const bridge = new SiteBridge({ serverURL: options.serverURL })
+  const bridge = new SiteBridge({ draft: options.draft, serverURL: options.serverURL })
   const overlay = new OverlayRenderer()
 
   let editMode = false

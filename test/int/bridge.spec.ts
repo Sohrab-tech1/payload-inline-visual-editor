@@ -132,6 +132,24 @@ describe('admin ⇄ site bridge handshake', () => {
     admin.destroy()
   })
 
+  it('reports draft status in hello-ack (SPEC §10)', () => {
+    const admin = new AdminBridge({
+      getTargetWindow: () => frames.siteContentWindow,
+      targetOrigin: SITE_ORIGIN,
+      window: frames.adminWindow,
+    })
+    const site = new SiteBridge({ draft: false, serverURL: ADMIN_ORIGIN, window: frames.siteWindow })
+    const adminReceived: PveMessage[] = []
+    admin.onMessage((message) => adminReceived.push(message))
+    site.connect()
+
+    admin.startSession(helloPayload)
+
+    expect(adminReceived).toHaveLength(1)
+    expect(adminReceived[0]!.payload).toMatchObject({ draft: false })
+    admin.destroy()
+  })
+
   it('keeps the SDK inert until a valid hello arrives', () => {
     const { site } = createBridges()
     const received: PveMessage[] = []

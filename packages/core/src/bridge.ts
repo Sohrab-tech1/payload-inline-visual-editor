@@ -3,6 +3,8 @@ import type { PveMessage, PveMessagePayloads, PveMessageType } from './protocol.
 import { createPveMessage, hasCompatibleVersion, isPveMessage, SDK_VERSION } from './protocol.js'
 
 export type SiteBridgeOptions = {
+  /** Whether the page is rendering draft content; reported in hello-ack so the admin can warn (SPEC §10). */
+  draft?: boolean
   serverURL: string
   window?: Window
 }
@@ -18,12 +20,14 @@ export class SiteBridge {
   readOnly = false
 
   private readonly adminOrigin: string
+  private readonly draft: boolean | undefined
   private readonly handlers = new Set<PveMessageHandler>()
   private sessionId: null | string = null
   private readonly win: Window
 
   constructor(options: SiteBridgeOptions) {
     this.adminOrigin = new URL(options.serverURL).origin
+    this.draft = options.draft
     this.win = options.window ?? window
   }
 
@@ -68,7 +72,7 @@ export class SiteBridge {
           `[payload-inline-visual-editor] Protocol version mismatch (admin sent v${message.version}) — falling back to read-only overlay. Align plugin and SDK versions.`,
         )
       }
-      this.send('hello-ack', { sdkVersion: SDK_VERSION })
+      this.send('hello-ack', { draft: this.draft, sdkVersion: SDK_VERSION })
     } else if (!this.sessionId || message.sessionId !== this.sessionId) {
       return
     }
