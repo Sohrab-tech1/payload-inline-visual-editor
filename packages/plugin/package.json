@@ -21,7 +21,9 @@
     "url": "git+https://github.com/what-digital/payload-inline-visual-editor.git",
     "directory": "packages/plugin"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "*.css"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -34,6 +36,11 @@
       "types": "./dist/exports/client.d.ts",
       "import": "./dist/exports/client.js",
       "default": "./dist/exports/client.js"
+    },
+    "./rsc": {
+      "types": "./dist/exports/rsc.d.ts",
+      "import": "./dist/exports/rsc.js",
+      "default": "./dist/exports/rsc.js"
     }
   },
   "files": [
@@ -41,16 +48,17 @@
   ],
   "scripts": {
     "build": "pnpm clean && pnpm build:types && pnpm build:swc",
-    "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths",
+    "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --copy-files",
     "build:types": "tsc --build",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "watch": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --watch"
+    "watch": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --copy-files --watch"
   },
   "dependencies": {
     "@payload-inline-visual-editor/core": "workspace:*"
   },
   "peerDependencies": {
     "@payloadcms/ui": "^3.85.0",
+    "next": "^15.2.9 || ^16.0.0",
     "payload": "^3.85.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -61,6 +69,7 @@
     "@swc/core": "^1.15.43",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "next": "^16.2.6",
     "payload": "^3.85.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

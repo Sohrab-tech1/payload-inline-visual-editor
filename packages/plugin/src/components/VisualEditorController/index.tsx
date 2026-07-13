@@ -1,17 +1,22 @@
 'use client'
 
-import type { PveMessagePayloads, PveOp } from '@payload-inline-visual-editor/core'
+import type { PveMessagePayloads, PveOp, PveScopeRef } from '@payload-inline-visual-editor/core'
 import type { ClientBlock, Labels } from 'payload'
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { parseScope } from '@payload-inline-visual-editor/core'
+import { formatAdminURL } from 'payload/shared'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import type { BlockOpsOptions } from '../../index.js'
 import type { FieldSchemaLike } from '../../utils/fieldPaths.js'
 
+import { visualEditorRuntime } from '../../index.js'
 import {
   BlocksDrawer,
   Button,
   ConfirmationModal,
+  useConfig,
+  useDocumentDrawerContext,
   useDocumentInfo,
   useForm,
   useLivePreviewContext,
@@ -23,6 +28,10 @@ import { normalizeBlockOps, planBlockOp, resolveRowIndexById } from '../../utils
 import { resolveDataPath } from '../../utils/fieldPaths.js'
 import { collectRowExpansions, focusFormField, isValidDataPath, pathFromFormElement } from '../../utils/formFocus.js'
 import { buildDocRef, buildPermissionSummary, collectBlockLabels } from '../../utils/helloPayload.js'
+import { buildViewPath } from '../../utils/viewPath.js'
+import { CollectionDocDrawer, GlobalDocDrawer } from '../DocSwitchDrawer/index.js'
+import { LocaleSwitcher } from '../LocaleSwitcher/index.js'
+import { usePveDocDrawer, usePveShell } from '../VisualEditorScreen/shellContext.js'
 
 export type VisualEditorControllerProps = {
   blockOps?: BlockOpsOptions | false
@@ -61,21 +70,35 @@ type ContainerFieldLike = FieldSchemaLike & {
  * focus sync, and block ops (`op` → form row operations + `op-ack`, SPEC §8).
  */
 export const VisualEditorController = ({ blockOps, debug }: VisualEditorControllerProps) => {
-  const { breakpoint, iframeRef, isLivePreviewing, loadedURL } = useLivePreviewContext()
+  const { breakpoint, iframeRef, isLivePreviewing, loadedURL, setIsLivePreviewing } = useLivePreviewContext()
   const { collectionSlug, docConfig, docPermissions, globalSlug, hasPublishPermission, hasSavePermission, id } =
     useDocumentInfo()
   const { addFieldRow, dispatchFields, getFields, moveFieldRow, removeFieldRow, setModified } = useForm()
   const { openModal } = useModal()
+  const { config } = useConfig()
   const locale = useLocale()
+  const shell = usePveShell()
+  // Drawer-hosted documents render this controller too (the slot renders in
+  // drawers) — there it must stay inert, it has no iframe to talk to
+  const inDrawer = usePveDocDrawer() || Boolean(useDocumentDrawerContext().drawerSlug)
   const uid = useId()
 
-  const [editMode, setEditMode] = useState(false)
+  const [editMode, setEditMode] = useState(Boolean(shell))
   const [connected, setConnected] = useState(false)
   const [pendingAdd, setPendingAdd] = useState<null | PendingAdd>(null)
   const [pendingRemove, setPendingRemove] = useState<null | PendingRemove>(null)
+  const [docSwitch, setDocSwitch] = useState<null | PveScopeRef>(null)
   const bridgeRef = useRef<AdminBridge | null>(null)
   const regionPathsRef = useRef<Set<string>>(new Set())
   const selectSeqRef = useRef(0)
+
+  // The dedicated view has no reason to exist without the preview iframe —
+  // force it on (the shell hides the stock toggler)
+  useEffect(() => {
+    if (shell && !inDrawer && !isLivePreviewing) {
+      setIsLivePreviewing(true)
+    }
+  }, [shell, inDrawer, isLivePreviewing, setIsLivePreviewing])
 
   const blocksDrawerSlug = `pve-blocks-drawer-${uid}`
   const removeConfirmSlug = `pve-remove-row-${uid}`
@@ -117,6 +140,23 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
     }
     const seq = ++selectSeqRef.current
     void focusFormField({ path, shouldContinue: () => selectSeqRef.current === seq })
+  }
+
+  // Only entities the admin actually knows can be drawer targets — the scope
+  // string comes from the untrusted iframe (SPEC §6)
+  const handleDocSwitchRef = useRef<(scope: string) => void>(null!)
+  handleDocSwitchRef.current = (scope) => {
+    const parsed = parseScope(scope)
+    if (!parsed) {
+      return
+    }
+    if ('global' in parsed) {
+      if (config.globals.some((global) => global.slug === parsed.global)) {
+        setDocSwitch(parsed)
+      }
+    } else if (parsed.id != null && config.collections.some((collection) => collection.slug === parsed.collection)) {
+      setDocSwitch(parsed)
+    }
   }
 
   const ackRef = useRef<(opId: string, ok: boolean, error?: string) => void>(null!)
@@ -193,7 +233,7 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
   }
 
   useEffect(() => {
-    if (!isLivePreviewing || !targetOrigin) {
+    if (!isLivePreviewing || !targetOrigin || inDrawer) {
       return
     }
     const iframe = iframeRef.current
@@ -208,6 +248,9 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
         console.debug('[payload-inline-visual-editor] admin ←', message.type, message.payload)
       }
       switch (message.type) {
+        case 'payload-visual-editor:doc-switch-request':
+          handleDocSwitchRef.current(message.payload.scope)
+          break
         case 'payload-visual-editor:hello-ack':
           setConnected(true)
           if (message.payload.draft === false) {
@@ -243,7 +286,7 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
       bridgeRef.current = null
       setConnected(false)
     }
-  }, [debug, iframeRef, isLivePreviewing, loadedURL, targetOrigin])
+  }, [debug, iframeRef, inDrawer, isLivePreviewing, loadedURL, targetOrigin])
 
   useEffect(() => {
     if (pendingAdd) {
@@ -291,8 +334,42 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
     }
   }, [editMode, connected])
 
-  if (!isLivePreviewing) {
+  const clearDocSwitch = useCallback(() => setDocSwitch(null), [])
+
+  const runtime = visualEditorRuntime(config.admin)
+  const viewHref = useMemo(() => {
+    if (shell || !runtime?.view) {
+      return null
+    }
+    const adminRoute = config.routes.admin
+    if (globalSlug) {
+      return formatAdminURL({ adminRoute, path: buildViewPath(runtime.view.path, { globalSlug }) })
+    }
+    if (collectionSlug && id != null) {
+      return formatAdminURL({ adminRoute, path: buildViewPath(runtime.view.path, { collectionSlug, id }) })
+    }
     return null
+  }, [shell, runtime?.view, config.routes.admin, collectionSlug, globalSlug, id])
+
+  const openViewLink = viewHref ? (
+    <Button
+      buttonStyle="secondary"
+      el="link"
+      size="small"
+      to={viewHref}
+      tooltip="Open the full-screen visual editor"
+    >
+      Open visual editor
+    </Button>
+  ) : null
+
+  if (inDrawer) {
+    return null
+  }
+
+  if (!isLivePreviewing && !shell) {
+    // No preview, no channel — but the dedicated view is still one click away
+    return openViewLink
   }
 
   const toggleEditMode = (): void => {
@@ -345,6 +422,35 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
       >
         {editMode ? 'Editing on page' : 'Edit on page'}
       </Button>
+      {shell ? (
+        <div className="pve-toolbar-items">
+          {shell.toolbar.locale ? <LocaleSwitcher /> : null}
+          <Button
+            buttonStyle="secondary"
+            onClick={() => shell.setPanelCollapsed(!shell.panelCollapsed)}
+            size="small"
+          >
+            {shell.panelCollapsed ? 'Show fields' : 'Hide fields'}
+          </Button>
+          {shell.toolbar.exit ? (
+            <Button buttonStyle="secondary" el="link" size="small" to={shell.exitUrl}>
+              Exit
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        openViewLink
+      )}
+      {docSwitch && 'global' in docSwitch ? (
+        <GlobalDocDrawer globalSlug={docSwitch.global} key={docSwitch.global} onClose={clearDocSwitch} />
+      ) : docSwitch ? (
+        <CollectionDocDrawer
+          collectionSlug={docSwitch.collection}
+          id={String(docSwitch.id)}
+          key={`${docSwitch.collection}-${docSwitch.id}`}
+          onClose={clearDocSwitch}
+        />
+      ) : null}
       {pendingAdd ? (
         <BlocksDrawer
           addRow={drawerAddRow}

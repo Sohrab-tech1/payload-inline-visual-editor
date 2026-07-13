@@ -297,6 +297,109 @@ test.describe('visual editor', () => {
     await expect(frame.locator('[data-pve-pending]')).toHaveCount(0)
   })
 
+  // M5 exit criteria (SPEC §13): dedicated view via render-document, top
+  // toolbar, doc-switch drawers
+  test('unauthenticated users are redirected from the dedicated view to login', async ({ page }) => {
+    await page.goto('/admin/visual-editor/pages/1')
+    await page.waitForURL('**/admin/login?redirect=*')
+  })
+
+  test('the stock edit view links into the dedicated view', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const id = await createTestPage(page, 'e2e-entry')
+    await page.goto(`/admin/collections/pages/${id}`)
+
+    const entry = page.getByRole('link', { name: 'Open visual editor' })
+    await expect(entry).toBeVisible({ timeout: 15_000 })
+    await entry.click()
+    await page.waitForURL(`**/admin/visual-editor/pages/${id}`)
+  })
+
+  test('dedicated view hosts the full editor behind a bare toolbar shell', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const id = await createTestPage(page, 'e2e-view')
+    await page.goto(`/admin/visual-editor/pages/${id}`)
+
+    // Live preview is forced on and edit mode auto-enabled (SPEC §2 v2)
+    const frame = page.frameLocator('iframe#live-preview-iframe')
+    await expect(frame.locator('h1')).toContainText('E2E hero', { timeout: 20_000 })
+    await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 15_000 })
+    await expect(page.locator('.doc-header')).toBeHidden()
+
+    // Click-to-edit focuses the field in the docked panel
+    await frame.locator('[data-pve-field="layout.0.heading"]').click()
+    await expect(page.locator('#field-layout__0__heading')).toBeFocused()
+
+    // Fields panel collapses for a full-bleed preview
+    await page.getByRole('button', { name: 'Hide fields' }).click()
+    await expect(page.locator('.collection-edit__main')).toBeHidden()
+    await page.getByRole('button', { name: 'Show fields' }).click()
+    await expect(page.locator('.collection-edit__main')).toBeVisible()
+
+    // Exit returns to the stock edit view
+    await page.getByRole('link', { name: 'Exit' }).click()
+    await page.waitForURL(`**/admin/collections/pages/${id}`)
+  })
+
+  test('dedicated view publishes block ops through the toolbar', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const id = await createTestPage(page, 'e2e-view-publish')
+    await page.goto(`/admin/visual-editor/pages/${id}`)
+
+    const frame = page.frameLocator('iframe#live-preview-iframe')
+    await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
+
+    const chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
+    await chip.locator('[data-pve-chip-action="duplicate"]').click()
+    await expect(frame.locator('[data-pve-block-type="hero"]')).toHaveCount(2)
+
+    await page.getByRole('button', { name: 'Publish changes' }).click()
+    await expect(page.locator('.payload-toast-container')).toContainText(/updated successfully/i)
+    expect(await publishedLayout(page, id)).toEqual(['hero', 'hero', 'cta'])
+  })
+
+  test('clicking a header region opens the global in a doc-switch drawer', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const id = await createTestPage(page, 'e2e-doc-switch')
+    await page.goto(`/admin/visual-editor/pages/${id}`)
+
+    const frame = page.frameLocator('iframe#live-preview-iframe')
+    await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
+
+    // Hover names the other document; click opens it in a drawer
+    const navLabel = frame.locator('[data-pve-scope="global:header"] [data-pve-field="navItems.0.label"]')
+    await navLabel.hover()
+    await expect(frame.locator('[data-pve-hover-label]')).toHaveText('Header')
+    await navLabel.click()
+
+    const drawer = page.locator('.drawer--is-open')
+    const labelField = drawer.locator('#field-navItems__0__label')
+    await expect(labelField).toBeVisible({ timeout: 15_000 })
+
+    try {
+      await labelField.fill('Client mode edited')
+      await drawer.getByRole('button', { name: 'Save', exact: true }).click()
+      await expect(page.locator('.payload-toast-container')).toContainText(/updated successfully/i)
+
+      const response = await page.request.get('/api/globals/header?depth=0')
+      const header = (await response.json()) as { navItems: { label: string }[] }
+      expect(header.navItems[0]!.label).toBe('Client mode edited')
+
+      await page.locator('.pve-doc-drawer__close').click()
+      await expect(drawer).toHaveCount(0)
+    } finally {
+      // The header global is shared state — restore the seeded value
+      await page.request.post('/api/globals/header', {
+        data: {
+          navItems: [
+            { label: 'Client mode', url: '/client-mode/home' },
+            { label: 'SSR mode', url: '/ssr-mode/home' },
+          ],
+        },
+      })
+    }
+  })
+
   // SPEC §12: save → published document correct — ops only touch the working
   // draft until the editor publishes, and publishing lands them verbatim.
   test('publishing after block ops lands them in the published document', async ({ page }) => {

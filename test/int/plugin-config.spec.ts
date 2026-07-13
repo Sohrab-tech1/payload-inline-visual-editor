@@ -1,9 +1,11 @@
 import type { Config } from 'payload'
 
-import { visualEditor } from 'payload-inline-visual-editor'
+import { PLUGIN_CONFIG_KEY, visualEditor, visualEditorRuntime } from 'payload-inline-visual-editor'
 import { describe, expect, it } from 'vitest'
 
 const CONTROLLER_PATH = 'payload-inline-visual-editor/client#VisualEditorController'
+
+const VIEW_PATH = 'payload-inline-visual-editor/rsc#VisualEditorView'
 
 const baseConfig = (): Config =>
   ({
@@ -99,5 +101,64 @@ describe('visualEditor config mutation', () => {
     const posts = (result.collections as unknown as AnyEntity[])[1]
 
     expect(posts.admin?.components).toBeUndefined()
+  })
+
+  // M5 (SPEC §11, §13): dedicated view registration + runtime snapshot
+  it('registers the dedicated view and stores the runtime snapshot in admin.custom', () => {
+    const result = visualEditor()(baseConfig())
+
+    expect(result.admin?.components?.views?.['visual-editor']).toEqual({
+      Component: VIEW_PATH,
+      exact: true,
+      path: '/visual-editor/:collectionSlug/:id',
+    })
+    expect(visualEditorRuntime(result.admin)).toEqual({
+      collections: ['pages'],
+      globals: ['header'],
+      toolbar: { breakpoint: true, exit: true, locale: true },
+      view: { path: '/visual-editor/:collectionSlug/:id' },
+    })
+  })
+
+  it('honors view and toolbar options', () => {
+    const result = visualEditor({
+      toolbar: { breakpoint: false, locale: false },
+      view: { path: '/editor/:collectionSlug/:id' },
+    })(baseConfig())
+
+    expect(result.admin?.components?.views?.['visual-editor']).toMatchObject({
+      path: '/editor/:collectionSlug/:id',
+    })
+    expect(visualEditorRuntime(result.admin)?.toolbar).toEqual({
+      breakpoint: false,
+      exit: true,
+      locale: false,
+    })
+  })
+
+  it('skips view registration when disabled but keeps the snapshot', () => {
+    const result = visualEditor({ view: { enabled: false } })(baseConfig())
+
+    expect(result.admin?.components?.views).toBeUndefined()
+    expect(visualEditorRuntime(result.admin)?.view).toBeNull()
+  })
+
+  it('rejects a view path without the required params', () => {
+    expect(() => visualEditor({ view: { path: '/editor' } })(baseConfig())).toThrow(
+      /:collectionSlug and :id/,
+    )
+  })
+
+  it('preserves pre-existing custom views and admin.custom entries', () => {
+    const config = baseConfig()
+    ;(config as { admin?: unknown }).admin = {
+      components: { views: { other: { Component: 'x#Y', path: '/other' } } },
+      custom: { other: true },
+    }
+    const result = visualEditor()(config)
+
+    expect(result.admin?.components?.views?.other).toEqual({ Component: 'x#Y', path: '/other' })
+    expect(result.admin?.custom?.other).toBe(true)
+    expect(result.admin?.custom?.[PLUGIN_CONFIG_KEY]).toBeDefined()
   })
 })

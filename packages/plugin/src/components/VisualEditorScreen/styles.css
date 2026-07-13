@@ -1,0 +1,97 @@
+/* Dedicated-view shell (SPEC §2 v2): the stock edit view rendered bare, with
+   the document header hidden, the fields panel docked left, and the live
+   preview window filling the rest. Class names of restyled Payload internals
+   are pinned to @payloadcms/ui 3.x — treat breakage like payload-internals.ts. */
+
+.pve-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.pve-shell .doc-header {
+  display: none;
+}
+
+/* Live preview is forced on by the controller — the stock toggler would only
+   let editors strand themselves in a half-broken layout. */
+.pve-shell #live-preview-toggler {
+  display: none;
+}
+
+.pve-shell .collection-edit {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pve-shell .collection-edit__main-wrapper {
+  flex: 1;
+  min-height: 0;
+}
+
+.pve-shell .collection-edit__main {
+  border-right: 1px solid var(--theme-elevation-100);
+  flex: 0 0 var(--pve-panel-width, 26rem);
+  max-width: var(--pve-panel-width, 26rem);
+  overflow-y: auto;
+}
+
+.pve-shell--panel-collapsed .collection-edit__main {
+  display: none;
+}
+
+.pve-shell--no-preview-toolbar .live-preview-toolbar {
+  display: none;
+}
+
+.pve-shell__error {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.pve-toolbar-items {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pve-toolbar-items .btn {
+  margin: 0;
+}
+
+.pve-locale-switcher {
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 4px;
+  color: var(--theme-elevation-800);
+  padding: 0.25rem 0.5rem;
+}
+
+/* Doc-switch drawer for globals: the document renders without stock drawer
+   context, so hide the preview machinery it would otherwise mount. */
+.pve-doc-drawer .live-preview-window,
+.pve-doc-drawer #live-preview-toggler,
+.pve-doc-drawer .doc-header {
+  display: none;
+}
+
+.pve-doc-drawer__close {
+  background: transparent;
+  border: 0;
+  color: var(--theme-elevation-800);
+  cursor: pointer;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.5rem;
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
+  z-index: 10;
+}

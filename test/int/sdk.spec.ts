@@ -182,7 +182,8 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     expect(outgoing(post)).toHaveLength(0)
   })
 
-  it('treats regions of other documents as read-only', () => {
+  // M5 (SPEC §9): regions of other documents are doc-switch targets
+  it('offers doc-switch on regions of other documents', () => {
     teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
     document.body.insertAdjacentHTML(
       'afterbegin',
@@ -191,20 +192,36 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     sendFromAdmin('hello', helloPayload)
     post.mockClear()
 
+    // Hover names the other document (not the field) and reports no hover/chip
     const nav = document.querySelector('[data-pve-field="navItems.0.label"]')!
     nav.dispatchEvent(new Event('pointermove', { bubbles: true }))
     const box = document.querySelector('[data-pve-hover-box]') as HTMLElement
-    expect(box.style.display).toBe('none')
+    const label = document.querySelector('[data-pve-hover-label]') as HTMLElement
+    expect(box.style.display).toBe('block')
+    expect(label.textContent).toBe('Header')
+    expect(outgoing(post)).toHaveLength(0)
+    expect((document.querySelector('[data-pve-chip]') as HTMLElement).style.display).toBe('none')
 
-    // Editing the header global instead flips which regions are live
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+    nav.dispatchEvent(click)
+    expect(click.defaultPrevented).toBe(true)
+    const messages = outgoing(post)
+    expect(messages.map((m) => m.type)).toEqual(['payload-visual-editor:doc-switch-request'])
+    expect(messages[0]!.payload).toEqual({ scope: 'global:header' })
+
+    // Editing the header global instead flips which side is live vs switchable
     sendFromAdmin('hello', { ...helloPayload, docs: [{ global: 'header' }] }, 'session-2')
     post.mockClear()
     nav.dispatchEvent(new Event('pointermove', { bubbles: true }))
-    expect(box.style.display).toBe('block')
+    expect(label.textContent).toBe('Label')
+    expect(outgoing(post).map((m) => m.type)).toEqual(['payload-visual-editor:hover'])
 
+    post.mockClear()
     const heading = document.querySelector('[data-pve-field="layout.0.heading"]')!
-    heading.dispatchEvent(new Event('pointermove', { bubbles: true }))
-    expect(box.style.display).toBe('none')
+    const pageClick = new MouseEvent('click', { bubbles: true, cancelable: true })
+    heading.dispatchEvent(pageClick)
+    expect(outgoing(post).map((m) => m.type)).toEqual(['payload-visual-editor:doc-switch-request'])
+    expect(outgoing(post)[0]!.payload).toEqual({ scope: 'collection:pages;id:abc' })
   })
 
   it('shows a row chip on hover and posts ops for its actions (M3)', () => {

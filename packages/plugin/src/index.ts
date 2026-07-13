@@ -22,6 +22,8 @@ export {
 } from './utils/formFocus.js'
 export type { FocusFormFieldArgs, RowExpansion, RowLike } from './utils/formFocus.js'
 export { buildDocRef, buildPermissionSummary, collectBlockLabels } from './utils/helloPayload.js'
+export { buildViewPath, parseViewSegments } from './utils/viewPath.js'
+export type { ViewTarget } from './utils/viewPath.js'
 
 export type BlockOpsOptions = {
   add?: boolean
@@ -35,11 +37,25 @@ export type VisualEditorEntityOptions = {
   url?: LivePreviewConfig['url']
 }
 
+export type VisualEditorToolbarOptions = {
+  breakpoint?: boolean
+  exit?: boolean
+  locale?: boolean
+}
+
+export type VisualEditorViewOptions = {
+  enabled?: boolean
+  /** Must contain the `:collectionSlug` and `:id` params; globals mount at `…/globals/:globalSlug`. */
+  path?: string
+}
+
 export type VisualEditorOptions = {
   breakpoints?: 'inherit' | LivePreviewConfig['breakpoints']
   collections?: Record<string, true | VisualEditorEntityOptions>
   debug?: boolean
   globals?: Record<string, true | VisualEditorEntityOptions>
+  toolbar?: VisualEditorToolbarOptions
+  view?: VisualEditorViewOptions
 }
 
 export type VisualEditorClientProps = {
@@ -47,7 +63,30 @@ export type VisualEditorClientProps = {
   debug?: boolean
 }
 
+/**
+ * Options snapshot the plugin stores under `admin.custom` — the only config
+ * channel that reaches both the view RSC (sanitized server config) and client
+ * components (client config).
+ */
+export type VisualEditorRuntimeConfig = {
+  collections: string[]
+  globals: string[]
+  toolbar: Required<VisualEditorToolbarOptions>
+  view: null | { path: string }
+}
+
+export const PLUGIN_CONFIG_KEY = 'payload-inline-visual-editor'
+
+export const DEFAULT_VIEW_PATH = '/visual-editor/:collectionSlug/:id'
+
+export const visualEditorRuntime = (
+  admin: { custom?: Record<string, unknown> } | undefined,
+): null | VisualEditorRuntimeConfig =>
+  (admin?.custom?.[PLUGIN_CONFIG_KEY] as undefined | VisualEditorRuntimeConfig) ?? null
+
 const CONTROLLER_PATH = 'payload-inline-visual-editor/client#VisualEditorController'
+
+const VIEW_COMPONENT_PATH = 'payload-inline-visual-editor/rsc#VisualEditorView'
 
 type EntityKind = 'collections' | 'globals'
 
@@ -115,16 +154,21 @@ const controllerComponent = (entityOptions: VisualEditorEntityOptions, pluginOpt
 /**
  * Enables the inline visual editor for collections/globals that have a Live
  * Preview URL (or are explicitly listed). Injects the controller inside the
- * document <Form> via edit.beforeDocumentControls (SPEC §3, §11).
+ * document <Form> via edit.beforeDocumentControls (SPEC §3, §11) and, unless
+ * disabled, registers the dedicated view at `view.path` (SPEC §2 v2).
  */
 export const visualEditor =
   (pluginOptions: VisualEditorOptions = {}) =>
   (config: Config): Config => {
+    const enabledCollections: string[] = []
+    const enabledGlobals: string[] = []
+
     const collections = (config.collections ?? []).map((collection) => {
       const entityOptions = resolveEntityOptions(pluginOptions.collections, collection, config, 'collections')
       if (!entityOptions) {
         return collection
       }
+      enabledCollections.push(collection.slug)
       const withUrl = withEntityLivePreview(collection, entityOptions.url)
       return {
         ...withUrl,
@@ -149,6 +193,7 @@ export const visualEditor =
       if (!entityOptions) {
         return global
       }
+      enabledGlobals.push(global.slug)
       const withUrl = withEntityLivePreview(global, entityOptions.url)
       return {
         ...withUrl,
@@ -168,5 +213,46 @@ export const visualEditor =
       }
     })
 
-    return { ...config, collections, globals }
+    const viewEnabled = pluginOptions.view?.enabled !== false
+    const viewPath = pluginOptions.view?.path ?? DEFAULT_VIEW_PATH
+    if (viewEnabled && (!viewPath.includes(':collectionSlug') || !viewPath.includes(':id'))) {
+      throw new Error(
+        `[payload-inline-visual-editor] view.path "${viewPath}" must contain the :collectionSlug and :id params ` +
+          `(default: "${DEFAULT_VIEW_PATH}").`,
+      )
+    }
+
+    const runtime: VisualEditorRuntimeConfig = {
+      collections: enabledCollections,
+      globals: enabledGlobals,
+      toolbar: {
+        breakpoint: pluginOptions.toolbar?.breakpoint !== false,
+        exit: pluginOptions.toolbar?.exit !== false,
+        locale: pluginOptions.toolbar?.locale !== false,
+      },
+      view: viewEnabled ? { path: viewPath } : null,
+    }
+
+    return {
+      ...config,
+      admin: {
+        ...config.admin,
+        components: {
+          ...config.admin?.components,
+          views: viewEnabled
+            ? {
+                ...config.admin?.components?.views,
+                'visual-editor': {
+                  Component: VIEW_COMPONENT_PATH,
+                  exact: true,
+                  path: viewPath as `/${string}`,
+                },
+              }
+            : config.admin?.components?.views,
+        },
+        custom: { ...config.admin?.custom, [PLUGIN_CONFIG_KEY]: runtime },
+      },
+      collections,
+      globals,
+    }
   }

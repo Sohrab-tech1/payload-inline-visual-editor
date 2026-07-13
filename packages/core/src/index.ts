@@ -136,6 +136,15 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     return humanizePathTail(region.path)
   }
 
+  /** Label for a region of another document: the entity name (SPEC §9 doc-switch). */
+  const scopeLabel = (scope: string): string => {
+    const parsed = parseScope(scope)
+    if (!parsed) {
+      return scope
+    }
+    return humanizePathTail('global' in parsed ? parsed.global : parsed.collection)
+  }
+
   const indexRowBlockTypes = (regions: ScannedRegion[]): void => {
     rowBlockTypes = new Map()
     for (const region of regions) {
@@ -377,15 +386,28 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     emptyAffordances.refresh()
   })
 
+  /** A foreign-scope region is clickable as a document switch, not editable in place. */
+  const isSwitchRegion = (region: ScannedRegion): boolean =>
+    !scopeMatchesDoc(region.scope, docs) && parseScope(region.scope) !== null && !bridge.readOnly
+
+  // Switch regions highlight locally but are not admin hovers — dedupe on what
+  // the admin actually saw last
+  let lastHoverSent: null | string = null
+
   const setHovered = (region: null | ScannedRegion): void => {
     if (hovered?.regionId === region?.regionId && hovered?.element === region?.element) {
       return
     }
     const changedIdentity = hovered?.regionId !== region?.regionId
     hovered = region
-    overlay.setHover(region ? { element: region.element, label: regionLabel(region) } : null)
+    const switching = region ? isSwitchRegion(region) : false
+    overlay.setHover(
+      region
+        ? { element: region.element, label: switching ? scopeLabel(region.scope) : regionLabel(region) }
+        : null,
+    )
 
-    const chipRow = region ? rowRegionFor(region) : null
+    const chipRow = region && !switching ? rowRegionFor(region) : null
     const ops = chipRow && !bridge.readOnly ? opsForRow(chipRow) : null
     if (chipRow && ops) {
       chipRegion = chipRow
@@ -396,10 +418,14 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     }
 
     if (changedIdentity) {
-      bridge.send(
-        'hover',
-        region ? { path: region.path, regionId: region.regionId, scope: region.scope } : null,
-      )
+      const visible = region && !switching ? region : null
+      if ((visible?.regionId ?? null) !== lastHoverSent) {
+        lastHoverSent = visible?.regionId ?? null
+        bridge.send(
+          'hover',
+          visible ? { path: visible.path, regionId: visible.regionId, scope: visible.scope } : null,
+        )
+      }
     }
   }
 
@@ -407,15 +433,15 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     if (!(target instanceof Element)) {
       return null
     }
-    // Nearest editable marked ancestor: a denied leaf inside an allowed row
-    // still selects the row.
+    // Nearest actionable marked ancestor: a denied leaf inside an allowed row
+    // still selects the row; a region of another document is a doc-switch target.
     for (
       let element = target.closest(`[${PVE_ATTR.field}]`);
       element;
       element = element.parentElement?.closest(`[${PVE_ATTR.field}]`) ?? null
     ) {
       const region = registry.regionForElement(element)
-      if (region && isEditable(region)) {
+      if (region && (isEditable(region) || isSwitchRegion(region))) {
         return region
       }
     }
@@ -449,7 +475,11 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     }
     event.preventDefault()
     event.stopPropagation()
-    bridge.send('select', { path: region.path, regionId: region.regionId, scope: region.scope })
+    if (isSwitchRegion(region)) {
+      bridge.send('doc-switch-request', { scope: region.scope })
+    } else {
+      bridge.send('select', { path: region.path, regionId: region.regionId, scope: region.scope })
+    }
   }
 
   const setEditMode = (enabled: boolean): void => {
@@ -527,7 +557,9 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
         permissions = message.payload.permissions ?? null
         blockOps = message.payload.blockOps ?? ALL_BLOCK_OPS
         if (message.payload.editMode && editMode) {
-          // New admin session while already editing: re-report to the new session
+          // New admin session while already editing: re-report to the new
+          // session and recompute affordances (docs/permissions may differ)
+          setHovered(null)
           updateEmptyContainers(registry.regions)
           bridge.send('regions', { regions: toProtocolRegions(registry.regions) })
         } else {
