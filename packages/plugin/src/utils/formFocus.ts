@@ -96,10 +96,12 @@ export const flashFormField = (element: Element): void => {
   if (typeof element.animate !== 'function') {
     return
   }
+  // Payload's native blue/success accent (rgb(21,135,186)); matches the site
+  // overlay highlight in packages/core (overlay/theme.ts).
   element.animate(
     [
-      { boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.9), 0 0 0 6px rgba(37, 99, 235, 0.25)' },
-      { boxShadow: '0 0 0 2px rgba(37, 99, 235, 0), 0 0 0 6px rgba(37, 99, 235, 0)' },
+      { boxShadow: '0 0 0 2px rgba(21, 135, 186, 0.9), 0 0 0 6px rgba(21, 135, 186, 0.25)' },
+      { boxShadow: '0 0 0 2px rgba(21, 135, 186, 0), 0 0 0 6px rgba(21, 135, 186, 0)' },
     ],
     { duration: 1200, easing: 'ease-out' },
   )

@@ -50,8 +50,16 @@ export type PveOp = {
   scope: string
 }
 
+/** Viewport-relative geometry of a clicked region, in iframe CSS pixels. */
+export type PveRegionGeometry = {
+  point?: { x: number; y: number }
+  rect?: { height: number; width: number; x: number; y: number }
+}
+
 export type PveMessagePayloads = {
   breakpoint: { breakpoint: string }
+  /** Sent by either side when the current selection is dismissed (SDK lock cleared / admin popover closed). */
+  deselect: null
   'doc-status': { isDirty: boolean; publishedStatus?: string; saving: boolean }
   'doc-switch-request': { scope: string }
   'edit-mode': { enabled: boolean }
@@ -72,7 +80,7 @@ export type PveMessagePayloads = {
   op: PveOp
   'op-ack': { error?: string; ok: boolean; opId: string }
   regions: { regions: PveRegion[] }
-  select: { path: string; regionId: string; scope: string }
+  select: { path: string; regionId: string; scope: string } & PveRegionGeometry
 }
 
 export type PveMessageType = keyof PveMessagePayloads

@@ -11,16 +11,21 @@ export {
   ConfirmationModal,
   Drawer,
   EntityVisibilityProvider,
+  FieldPathContext,
   LoadingOverlay,
+  RenderFields,
+  ShimmerEffect,
   useConfig,
   useDocumentDrawer,
   useDocumentDrawerContext,
   useDocumentInfo,
   useForm,
+  useFormFields,
   useLivePreviewContext,
   useLocale,
   useModal,
   useServerFunctions,
+  XIcon,
 } from '@payloadcms/ui'
 // NOTE: deep imports like '@payloadcms/ui/elements/*' bundle a second copy of
 // the UI contexts (their hooks then see no provider) — only barrel exports work

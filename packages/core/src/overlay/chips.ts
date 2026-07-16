@@ -1,5 +1,7 @@
 import type { PveBlockOps } from '../protocol.js'
 
+import { ACCENT } from './theme.js'
+
 export type RowChipAction = 'add-above' | 'add-below' | 'duplicate' | 'remove'
 
 export type RowChipCallbacks = {
@@ -8,7 +10,7 @@ export type RowChipCallbacks = {
 }
 
 const CHIP_HEIGHT = 24
-const CHIP_COLOR = '#2563eb'
+const CHIP_COLOR = ACCENT
 
 type IconShape = [tag: string, attrs: Record<string, string>]
 

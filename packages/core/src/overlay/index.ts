@@ -1,9 +1,45 @@
 import { PVE_OVERLAY_ATTR as LAYER_ATTR } from '../attrs.js'
+import { ACCENT, ACCENT_FILL, ACCENT_FILL_SOFT } from './theme.js'
 
-const HIGHLIGHT_COLOR = '#2563eb'
-const HIGHLIGHT_BG = 'rgba(37, 99, 235, 0.08)'
 const LABEL_HEIGHT = 20
 const FLASH_MS = 1200
+
+// Hover is transient — drawn translucent so it reads as "not yet committed".
+// Lock (click) is solid: it stays put so the row's chip can be reached and
+// the field stays selected while editing (SPEC §2).
+const HOVER_OPACITY = '0.55'
+
+const labelCss = (background: string): string =>
+  `position:fixed;display:none;height:${LABEL_HEIGHT}px;line-height:${LABEL_HEIGHT}px;` +
+  `background:${background};color:#fff;padding:0 6px;border-radius:3px 3px 3px 0;` +
+  'font:600 11px/20px system-ui,sans-serif;white-space:nowrap;max-width:60vw;' +
+  'overflow:hidden;text-overflow:ellipsis;'
+
+/** Positions a box + its label around `target`, viewport-relative. */
+const positionBoxLabel = (
+  box: HTMLDivElement,
+  label: HTMLDivElement,
+  target: OverlayHoverTarget,
+): void => {
+  const rect = target.element.getBoundingClientRect()
+  box.style.display = 'block'
+  box.style.left = `${rect.left}px`
+  box.style.top = `${rect.top}px`
+  box.style.width = `${rect.width}px`
+  box.style.height = `${rect.height}px`
+
+  label.style.display = 'block'
+  label.textContent = target.label
+  label.style.left = `${Math.max(0, rect.left)}px`
+  const labelAbove = rect.top - LABEL_HEIGHT
+  if (labelAbove >= 0) {
+    label.style.top = `${labelAbove}px`
+    label.style.borderRadius = '3px 3px 3px 0'
+  } else {
+    label.style.top = `${Math.max(0, rect.top)}px`
+    label.style.borderRadius = '0 3px 3px 0'
+  }
+}
 
 export type OverlayHoverTarget = {
   element: Element
@@ -24,6 +60,10 @@ export class OverlayRenderer {
   private hoverTarget: OverlayHoverTarget | null = null
   private label: HTMLDivElement | null = null
   private layer: HTMLDivElement | null = null
+  private lockedBox: HTMLDivElement | null = null
+  private lockedLabel: HTMLDivElement | null = null
+  private lockedResizeObserver: null | ResizeObserver = null
+  private lockedTarget: OverlayHoverTarget | null = null
   private rafId: null | number = null
   private readonly refreshHooks = new Set<() => void>()
   private resizeObserver: null | ResizeObserver = null
@@ -71,30 +111,40 @@ export class OverlayRenderer {
     const box = doc.createElement('div')
     box.setAttribute('data-pve-hover-box', '')
     box.style.cssText =
-      `position:fixed;display:none;box-sizing:border-box;border:2px solid ${HIGHLIGHT_COLOR};` +
-      `background:${HIGHLIGHT_BG};border-radius:2px;`
+      `position:fixed;display:none;box-sizing:border-box;border:2px solid ${ACCENT};` +
+      `background:${ACCENT_FILL_SOFT};border-radius:2px;opacity:${HOVER_OPACITY};`
     layer.appendChild(box)
 
     const label = doc.createElement('div')
     label.setAttribute('data-pve-hover-label', '')
-    label.style.cssText =
-      `position:fixed;display:none;height:${LABEL_HEIGHT}px;line-height:${LABEL_HEIGHT}px;` +
-      `background:${HIGHLIGHT_COLOR};color:#fff;padding:0 6px;border-radius:3px 3px 3px 0;` +
-      'font:600 11px/20px system-ui,sans-serif;white-space:nowrap;max-width:60vw;' +
-      'overflow:hidden;text-overflow:ellipsis;'
+    label.style.cssText = labelCss(ACCENT) + `opacity:${HOVER_OPACITY};`
     layer.appendChild(label)
+
+    const lockedBox = doc.createElement('div')
+    lockedBox.setAttribute('data-pve-locked-box', '')
+    lockedBox.style.cssText =
+      `position:fixed;display:none;box-sizing:border-box;border:2px solid ${ACCENT};` +
+      `background:${ACCENT_FILL};border-radius:2px;box-shadow:0 0 0 1px ${ACCENT_FILL};`
+    layer.appendChild(lockedBox)
+
+    const lockedLabel = doc.createElement('div')
+    lockedLabel.setAttribute('data-pve-locked-label', '')
+    lockedLabel.style.cssText = labelCss(ACCENT)
+    layer.appendChild(lockedLabel)
 
     const flashBox = doc.createElement('div')
     flashBox.setAttribute('data-pve-flash-box', '')
     flashBox.style.cssText =
-      `position:fixed;display:none;box-sizing:border-box;border:2px solid ${HIGHLIGHT_COLOR};` +
-      `background:${HIGHLIGHT_BG};border-radius:2px;`
+      `position:fixed;display:none;box-sizing:border-box;border:2px solid ${ACCENT};` +
+      `background:${ACCENT_FILL};border-radius:2px;`
     layer.appendChild(flashBox)
 
     doc.body.appendChild(layer)
     this.layer = layer
     this.box = box
     this.label = label
+    this.lockedBox = lockedBox
+    this.lockedLabel = lockedLabel
     this.flashBox = flashBox
 
     const win = doc.defaultView ?? window
@@ -128,7 +178,7 @@ export class OverlayRenderer {
   }
 
   refresh(): void {
-    if (!this.box || !this.label) {
+    if (!this.box || !this.label || !this.lockedBox || !this.lockedLabel) {
       return
     }
     for (const hook of this.refreshHooks) {
@@ -146,29 +196,23 @@ export class OverlayRenderer {
         this.flashBox.style.display = 'none'
       }
     }
-    if (!this.hoverTarget || !this.hoverTarget.element.isConnected) {
-      this.box.style.display = 'none'
-      this.label.style.display = 'none'
-      return
+
+    const locked = this.lockedTarget?.element.isConnected ? this.lockedTarget : null
+    if (locked) {
+      positionBoxLabel(this.lockedBox, this.lockedLabel, locked)
+    } else {
+      this.lockedBox.style.display = 'none'
+      this.lockedLabel.style.display = 'none'
     }
 
-    const rect = this.hoverTarget.element.getBoundingClientRect()
-    this.box.style.display = 'block'
-    this.box.style.left = `${rect.left}px`
-    this.box.style.top = `${rect.top}px`
-    this.box.style.width = `${rect.width}px`
-    this.box.style.height = `${rect.height}px`
-
-    this.label.style.display = 'block'
-    this.label.textContent = this.hoverTarget.label
-    this.label.style.left = `${Math.max(0, rect.left)}px`
-    const labelAbove = rect.top - LABEL_HEIGHT
-    if (labelAbove >= 0) {
-      this.label.style.top = `${labelAbove}px`
-      this.label.style.borderRadius = '3px 3px 3px 0'
+    // Suppress the translucent hover on the locked element so it doesn't
+    // double-draw over the solid box.
+    const hover = this.hoverTarget?.element.isConnected ? this.hoverTarget : null
+    if (hover && hover.element !== locked?.element) {
+      positionBoxLabel(this.box, this.label, hover)
     } else {
-      this.label.style.top = `${Math.max(0, rect.top)}px`
-      this.label.style.borderRadius = '0 3px 3px 0'
+      this.box.style.display = 'none'
+      this.label.style.display = 'none'
     }
   }
 
@@ -182,6 +226,21 @@ export class OverlayRenderer {
     if (target && typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(this.scheduleRefresh)
       this.resizeObserver.observe(target.element)
+    }
+    this.refresh()
+  }
+
+  /** The persistent "selected" highlight after a click (SPEC §2 click-to-edit). */
+  setLocked(target: null | OverlayHoverTarget): void {
+    if (this.lockedTarget?.element === target?.element && this.lockedTarget?.label === target?.label) {
+      return
+    }
+    this.lockedTarget = target
+    this.lockedResizeObserver?.disconnect()
+    this.lockedResizeObserver = null
+    if (target && typeof ResizeObserver !== 'undefined') {
+      this.lockedResizeObserver = new ResizeObserver(this.scheduleRefresh)
+      this.lockedResizeObserver.observe(target.element)
     }
     this.refresh()
   }
@@ -200,7 +259,10 @@ export class OverlayRenderer {
     }
     this.resizeObserver?.disconnect()
     this.resizeObserver = null
+    this.lockedResizeObserver?.disconnect()
+    this.lockedResizeObserver = null
     this.hoverTarget = null
+    this.lockedTarget = null
     if (this.flashTimer !== null) {
       clearTimeout(this.flashTimer)
       this.flashTimer = null
@@ -210,6 +272,8 @@ export class OverlayRenderer {
     this.layer = null
     this.box = null
     this.label = null
+    this.lockedBox = null
+    this.lockedLabel = null
     this.flashBox = null
   }
 }

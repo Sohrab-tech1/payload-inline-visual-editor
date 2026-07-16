@@ -1,6 +1,7 @@
 import type { dropIndicatorLine } from './dnd.js'
 
-const ACCENT = '#2563eb'
+import { ACCENT, ACCENT_FILL_MED, ACCENT_FILL_SOFT } from './theme.js'
+
 const LINE_THICKNESS = 3
 
 /** The 3px drop-target line shown while dragging a row (SPEC §8). */
@@ -70,7 +71,7 @@ export class PendingOverlay {
     box.setAttribute('data-pve-pending', '')
     box.style.cssText =
       `position:fixed;box-sizing:border-box;border:2px dashed ${ACCENT};border-radius:2px;` +
-      'background:rgba(37, 99, 235, 0.12);'
+      `background:${ACCENT_FILL_MED};`
     if (typeof box.animate === 'function') {
       box.animate([{ opacity: 1 }, { opacity: 0.35 }, { opacity: 1 }], {
         duration: 1000,
@@ -190,7 +191,7 @@ export class EmptyContainerAffordances {
       button.textContent = '+ Add block'
       button.style.cssText =
         'position:fixed;display:flex;align-items:center;justify-content:center;box-sizing:border-box;' +
-        `border:2px dashed ${ACCENT};border-radius:4px;background:rgba(37, 99, 235, 0.06);color:${ACCENT};` +
+        `border:2px dashed ${ACCENT};border-radius:4px;background:${ACCENT_FILL_SOFT};color:${ACCENT};` +
         'font:600 12px system-ui,sans-serif;cursor:pointer;pointer-events:auto;'
       button.onclick = (event) => {
         event.stopPropagation()

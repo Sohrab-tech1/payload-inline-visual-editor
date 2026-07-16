@@ -55,15 +55,37 @@ const ensureHeroRowExpanded = async (page: Page): Promise<void> => {
 // its own page so tests stay independent and re-runnable.
 const createdPageIds: string[] = []
 
-const createTestPage = async (page: Page, slugPrefix: string): Promise<string> => {
+const richTextValue = (text: string) => ({
+  root: {
+    children: [
+      {
+        children: [{ detail: 0, format: 0, mode: 'normal', style: '', text, type: 'text', version: 1 }],
+        direction: 'ltr',
+        format: '',
+        indent: 0,
+        type: 'paragraph',
+        version: 1,
+      },
+    ],
+    direction: 'ltr',
+    format: '',
+    indent: 0,
+    type: 'root',
+    version: 1,
+  },
+})
+
+const defaultLayout = [
+  { blockType: 'hero', heading: 'E2E hero', subheading: 'Block ops fixture' },
+  { blockType: 'cta', label: 'E2E button', url: '/admin' },
+]
+
+const createTestPage = async (page: Page, slugPrefix: string, layout: object[] = defaultLayout): Promise<string> => {
   const slug = `${slugPrefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
   const response = await page.request.post('/api/pages', {
     data: {
       _status: 'published',
-      layout: [
-        { blockType: 'hero', heading: 'E2E hero', subheading: 'Block ops fixture' },
-        { blockType: 'cta', label: 'E2E button', url: '/admin' },
-      ],
+      layout,
       slug,
       title: `E2E ${slug}`,
     },
@@ -85,8 +107,9 @@ test.afterEach(async ({ page }) => {
 const openTestPage = async (
   page: Page,
   slugPrefix = 'e2e',
+  layout: object[] = defaultLayout,
 ): Promise<{ frame: FrameLocator; id: string }> => {
-  const id = await createTestPage(page, slugPrefix)
+  const id = await createTestPage(page, slugPrefix, layout)
   await page.goto(`/admin/collections/pages/${id}`)
   const frame = await enterLivePreview(page)
   await expect(frame.locator('h1')).toContainText('E2E hero')
@@ -141,16 +164,25 @@ test.describe('visual editor', () => {
 
   // M2 exit criteria (SPEC §13): select → expand/scroll/focus; reverse focus flash
   test('click-to-edit focuses the admin form field', async ({ page }) => {
-    const frame = await openHomePageInLivePreview(page, 'dev@payloadcms.com')
-    await enableEditMode(page)
+    await login(page, 'dev@payloadcms.com')
+    // Throwaway page: the shared home draft accumulates blocks across runs,
+    // which shifts layout indices this test depends on
+    const { frame } = await openTestPage(page, 'e2e-select', [
+      { blockType: 'hero', heading: 'E2E hero', subheading: 'Click-to-edit fixture' },
+      {
+        blockType: 'section',
+        columns: [{ content: [{ blockType: 'cta', label: 'Nested button', url: '/admin' }] }],
+        heading: 'Section',
+      },
+    ])
 
     await frame.locator('[data-pve-field="layout.0.heading"]').click()
     const heading = page.locator('#field-layout__0__heading')
     await expect(heading).toBeFocused()
 
     // A field nested in blocks-in-arrays-in-blocks resolves too
-    await frame.locator('[data-pve-field="layout.2.columns.1.content.0.label"]').click()
-    await expect(page.locator('#field-layout__2__columns__1__content__0__label')).toBeFocused()
+    await frame.locator('[data-pve-field="layout.1.columns.0.content.0.label"]').click()
+    await expect(page.locator('#field-layout__1__columns__0__content__0__label')).toBeFocused()
   })
 
   test('click-to-edit expands a collapsed block row first', async ({ page }) => {
@@ -326,9 +358,13 @@ test.describe('visual editor', () => {
     await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 15_000 })
     await expect(page.locator('.doc-header')).toBeHidden()
 
-    // Click-to-edit focuses the field in the docked panel
+    // Click-to-edit opens the near-cursor popover (M6) on the shared form
     await frame.locator('[data-pve-field="layout.0.heading"]').click()
-    await expect(page.locator('#field-layout__0__heading')).toBeFocused()
+    const popover = page.locator('.pve-popover')
+    await expect(popover).toBeVisible()
+    await expect(popover.locator('#field-layout__0__heading')).toBeFocused()
+    await popover.getByRole('button', { name: 'Close' }).click()
+    await expect(popover).toHaveCount(0)
 
     // Fields panel collapses for a full-bleed preview
     await page.getByRole('button', { name: 'Hide fields' }).click()
@@ -398,6 +434,101 @@ test.describe('visual editor', () => {
         },
       })
     }
+  })
+
+  // M6 exit criteria (SPEC §13): RenderFields popover on the shared Form
+  // context, render-field for server components, upload/relationship drawer flows
+  test('popover edits stream through the shared form to the preview', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const id = await createTestPage(page, 'e2e-popover')
+    await page.goto(`/admin/visual-editor/pages/${id}`)
+
+    const frame = page.frameLocator('iframe#live-preview-iframe')
+    await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
+
+    await frame.locator('[data-pve-field="layout.0.heading"]').click()
+    const popover = page.locator('.pve-popover')
+    await expect(popover).toBeVisible()
+    await expect(popover.locator('.pve-popover__title')).toHaveText('Heading')
+
+    // Same Form context: typing streams straight into the live preview
+    const input = popover.locator('#field-layout__0__heading')
+    await expect(input).toBeFocused()
+    await input.fill('Popover edited')
+    await expect(frame.locator('h1')).toHaveText('Popover edited')
+
+    // Selecting another region retargets the popover in place
+    await frame.locator('[data-pve-field="layout.1.label"]').click()
+    await expect(popover.locator('.pve-popover__title')).toHaveText('Label')
+    await expect(popover.locator('#field-layout__1__label')).toBeVisible()
+
+    // Escape closes the popover and releases the page-side selection lock
+    await page.keyboard.press('Escape')
+    await expect(popover).toHaveCount(0)
+    await expect(frame.locator('[data-pve-locked-box]')).toBeHidden()
+
+    // Clicking unmarked page space closes it from the iframe side (deselect).
+    // The header's padding carries only a scope attribute — no field region.
+    await frame.locator('[data-pve-field="layout.0.heading"]').click()
+    await expect(popover).toBeVisible()
+    await frame.locator('header').click({ position: { x: 4, y: 4 } })
+    await expect(popover).toHaveCount(0)
+  })
+
+  test('row popover edits the whole block, upload drawers included', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const id = await createTestPage(page, 'e2e-popover-row')
+    await page.goto(`/admin/visual-editor/pages/${id}`)
+
+    const frame = page.frameLocator('iframe#live-preview-iframe')
+    await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
+
+    // Clicking row padding (outside child fields) targets the row region
+    await frame.locator('[data-pve-block-type="hero"]').click({ position: { x: 8, y: 8 } })
+    const popover = page.locator('.pve-popover')
+    await expect(popover).toBeVisible()
+    await expect(popover.locator('.pve-popover__title')).toHaveText('Hero')
+    await expect(popover.locator('#field-layout__0__heading')).toBeVisible()
+    await expect(popover.locator('#field-layout__0__subheading')).toBeVisible()
+
+    // The block's upload field ships with its native drawer flow
+    await popover.getByRole('button', { name: 'Choose from existing' }).click()
+    const drawer = page.locator('.drawer--is-open')
+    await expect(drawer).toBeVisible()
+
+    // Escape while a drawer is open closes the drawer, not the popover
+    await page.keyboard.press('Escape')
+    await expect(drawer).toHaveCount(0)
+    await expect(popover).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(popover).toHaveCount(0)
+  })
+
+  test('richText popover renders the server-rendered Lexical editor', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const id = await createTestPage(page, 'e2e-popover-rich', [
+      { blockType: 'hero', heading: 'E2E hero', subheading: 'Rich text fixture' },
+      { blockType: 'content', body: richTextValue('Rich text body') },
+    ])
+    await page.goto(`/admin/visual-editor/pages/${id}`)
+
+    const frame = page.frameLocator('iframe#live-preview-iframe')
+    await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
+
+    await frame.locator('[data-pve-field="layout.1.body"]').click()
+    const popover = page.locator('.pve-popover')
+    await expect(popover).toBeVisible()
+
+    // Lexical only exists as a server-rendered custom component — its presence
+    // proves the customComponents/render-field pipeline (SPEC §9 v2)
+    const editor = popover.locator('[data-lexical-editor="true"]')
+    await expect(editor).toBeVisible({ timeout: 15_000 })
+    await expect(editor).toContainText('Rich text body')
+
+    await editor.click()
+    await page.keyboard.press('End')
+    await page.keyboard.type(' extended')
+    await expect(frame.locator('[data-pve-field="layout.1.body"]')).toContainText('Rich text body extended')
   })
 
   // SPEC §12: save → published document correct — ops only touch the working

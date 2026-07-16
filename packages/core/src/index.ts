@@ -98,6 +98,7 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
 
   let editMode = false
   let hovered: null | ScannedRegion = null
+  let locked: null | ScannedRegion = null
   let labels: Record<string, string> = {}
   let docs: PveDocRef[] = []
   let permissions: null | PvePermissionSummary = null
@@ -278,16 +279,15 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     onRescan: (regions) => {
       indexRowBlockTypes(regions)
       updateEmptyContainers(regions)
-      if (!hovered) {
-        return
+      // Nodes may be replaced (live-preview re-render) or removed (block op);
+      // re-resolve the hover and lock highlights by identity.
+      if (locked && !locked.element.isConnected) {
+        setLocked(regions.find((region) => region.regionId === locked?.regionId) ?? null)
       }
-      if (hovered.element.isConnected) {
-        overlay.refresh()
-        return
+      if (hovered && !hovered.element.isConnected) {
+        setHovered(regions.find((region) => region.regionId === hovered?.regionId) ?? null)
       }
-      // The hovered node was replaced (e.g. live-preview re-render); re-resolve by identity
-      const replacement = regions.find((region) => region.regionId === hovered?.regionId)
-      setHovered(replacement ?? null)
+      overlay.refresh()
     },
   })
 
@@ -394,6 +394,23 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
   // the admin actually saw last
   let lastHoverSent: null | string = null
 
+  // The chip pins to the locked row when one is set, so it can be reached
+  // without the pointer needing to stay over the row; otherwise it follows the
+  // hovered row (SPEC §2). Switch regions never get a chip.
+  const syncChip = (): void => {
+    const active = locked ?? hovered
+    const switching = active ? isSwitchRegion(active) : false
+    const chipRow = active && !switching ? rowRegionFor(active) : null
+    const ops = chipRow && !bridge.readOnly ? opsForRow(chipRow) : null
+    if (chipRow && ops) {
+      chipRegion = chipRow
+      chip.show(chipRow.element, ops)
+    } else {
+      chipRegion = null
+      chip.hide()
+    }
+  }
+
   const setHovered = (region: null | ScannedRegion): void => {
     if (hovered?.regionId === region?.regionId && hovered?.element === region?.element) {
       return
@@ -406,16 +423,7 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
         ? { element: region.element, label: switching ? scopeLabel(region.scope) : regionLabel(region) }
         : null,
     )
-
-    const chipRow = region && !switching ? rowRegionFor(region) : null
-    const ops = chipRow && !bridge.readOnly ? opsForRow(chipRow) : null
-    if (chipRow && ops) {
-      chipRegion = chipRow
-      chip.show(chipRow.element, ops)
-    } else {
-      chipRegion = null
-      chip.hide()
-    }
+    syncChip()
 
     if (changedIdentity) {
       const visible = region && !switching ? region : null
@@ -426,6 +434,24 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
           visible ? { path: visible.path, regionId: visible.regionId, scope: visible.scope } : null,
         )
       }
+    }
+  }
+
+  /**
+   * Click-to-lock: a persistent "selected" highlight that keeps the row's chip
+   * reachable. Clearing notifies the admin (`deselect` — closes the v2 popover)
+   * unless the clear was admin-initiated in the first place.
+   */
+  const setLocked = (region: null | ScannedRegion, opts: { notify: boolean } = { notify: true }): void => {
+    if (locked?.regionId === region?.regionId && locked?.element === region?.element) {
+      return
+    }
+    const hadLock = locked !== null
+    locked = region
+    overlay.setLocked(region ? { element: region.element, label: regionLabel(region) } : null)
+    syncChip()
+    if (opts.notify && hadLock && !region) {
+      bridge.send('deselect', null)
     }
   }
 
@@ -471,6 +497,8 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     }
     const region = regionFromEventTarget(event.target)
     if (!region) {
+      // Click on unmarked page space clears the current selection.
+      setLocked(null)
       return
     }
     event.preventDefault()
@@ -478,7 +506,21 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     if (isSwitchRegion(region)) {
       bridge.send('doc-switch-request', { scope: region.scope })
     } else {
-      bridge.send('select', { path: region.path, regionId: region.regionId, scope: region.scope })
+      setLocked(rowRegionFor(region) ?? region)
+      const rect = region.element.getBoundingClientRect()
+      bridge.send('select', {
+        path: region.path,
+        point: { x: event.clientX, y: event.clientY },
+        rect: { height: rect.height, width: rect.width, x: rect.left, y: rect.top },
+        regionId: region.regionId,
+        scope: region.scope,
+      })
+    }
+  }
+
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape' && locked) {
+      setLocked(null)
     }
   }
 
@@ -498,14 +540,17 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
       document.addEventListener('pointermove', onPointerMove, { passive: true })
       document.documentElement.addEventListener('pointerleave', onPointerLeave)
       document.addEventListener('click', onClick, { capture: true })
+      document.addEventListener('keydown', onKeyDown)
     } else {
       document.removeEventListener('pointermove', onPointerMove)
       document.documentElement.removeEventListener('pointerleave', onPointerLeave)
       document.removeEventListener('click', onClick, { capture: true })
+      document.removeEventListener('keydown', onKeyDown)
       dragCleanup?.()
       dragCleanup = null
       clearTimers()
       pendingOps.clear()
+      setLocked(null, { notify: false })
       setHovered(null)
       registry.stop()
       emptyAffordances.unmount()
@@ -545,6 +590,9 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
       console.debug('[payload-inline-visual-editor]', message.type, message.payload)
     }
     switch (message.type) {
+      case 'payload-visual-editor:deselect':
+        setLocked(null, { notify: false })
+        break
       case 'payload-visual-editor:edit-mode':
         setEditMode(message.payload.enabled)
         break
@@ -559,6 +607,7 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
         if (message.payload.editMode && editMode) {
           // New admin session while already editing: re-report to the new
           // session and recompute affordances (docs/permissions may differ)
+          setLocked(null, { notify: false })
           setHovered(null)
           updateEmptyContainers(registry.regions)
           bridge.send('regions', { regions: toProtocolRegions(registry.regions) })

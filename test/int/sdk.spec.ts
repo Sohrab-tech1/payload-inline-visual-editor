@@ -85,14 +85,20 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     row.dispatchEvent(new Event('pointermove', { bubbles: true }))
     expect(label.textContent).toBe('Hero section')
 
-    // Click-to-select is suppressed and reported
+    // Click-to-select is suppressed and reported with its geometry (M6: the
+    // admin anchors the popover near the cursor)
     post.mockClear()
-    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 40, clientY: 25 })
     heading.dispatchEvent(click)
     expect(click.defaultPrevented).toBe(true)
     messages = outgoing(post)
     expect(messages.map((m) => m.type)).toEqual(['payload-visual-editor:select'])
-    expect(messages[0]!.payload).toMatchObject({ path: 'layout.0.heading', scope: 'collection:pages;id:abc' })
+    expect(messages[0]!.payload).toMatchObject({
+      path: 'layout.0.heading',
+      point: { x: 40, y: 25 },
+      rect: { height: 0, width: 0, x: 0, y: 0 },
+      scope: 'collection:pages;id:abc',
+    })
   })
 
   it('clears the highlight when the pointer moves off marked regions', () => {
@@ -263,6 +269,92 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
       .querySelector('[data-pve-field="layout.0.heading"]')!
       .dispatchEvent(new Event('pointermove', { bubbles: true }))
     expect((document.querySelector('[data-pve-chip]') as HTMLElement).style.display).toBe('flex')
+  })
+
+  it('locks a row on click so its chip survives the pointer leaving it', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    const row = document.querySelector('[data-pve-row]')!
+    const chip = document.querySelector('[data-pve-chip]') as HTMLElement
+    const hoverBox = document.querySelector('[data-pve-hover-box]') as HTMLElement
+    const lockedBox = document.querySelector('[data-pve-locked-box]') as HTMLElement
+
+    // Hover alone: the transient (translucent) highlight, no lock yet
+    row.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    expect(hoverBox.style.opacity).toBe('0.55')
+    expect(lockedBox.style.display).toBe('none')
+    expect(chip.style.display).toBe('flex')
+
+    // Click locks it: the solid highlight appears (no opacity fade)
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    expect(lockedBox.style.display).toBe('block')
+    expect(lockedBox.style.opacity).toBe('')
+
+    // Pointer leaves every marked region — the chip stays because the row is locked
+    document.body.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    expect(chip.style.display).toBe('flex')
+    expect(lockedBox.style.display).toBe('block')
+  })
+
+  it('releases the lock on Escape and on clicking unmarked page space, notifying the admin', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    const row = document.querySelector('[data-pve-row]')!
+    const chip = document.querySelector('[data-pve-chip]') as HTMLElement
+    const lockedBox = document.querySelector('[data-pve-locked-box]') as HTMLElement
+
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    document.body.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    expect(lockedBox.style.display).toBe('block')
+
+    post.mockClear()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(lockedBox.style.display).toBe('none')
+    expect(chip.style.display).toBe('none')
+    // The admin closes its popover on deselect (M6)
+    expect(outgoing(post).map((m) => m.type)).toEqual(['payload-visual-editor:deselect'])
+
+    // Re-lock, then clear by clicking outside any marked region
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    expect(lockedBox.style.display).toBe('block')
+    post.mockClear()
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    expect(lockedBox.style.display).toBe('none')
+    expect(outgoing(post).map((m) => m.type)).toEqual(['payload-visual-editor:deselect'])
+  })
+
+  it('clears the lock silently on an admin deselect (popover closed)', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    const row = document.querySelector('[data-pve-row]')!
+    const lockedBox = document.querySelector('[data-pve-locked-box]') as HTMLElement
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    expect(lockedBox.style.display).toBe('block')
+
+    post.mockClear()
+    sendFromAdmin('deselect', null)
+    expect(lockedBox.style.display).toBe('none')
+    // No echo back to the admin
+    expect(outgoing(post)).toHaveLength(0)
+  })
+
+  it('notifies deselect when the locked region disappears from the page', async () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    const row = document.querySelector('[data-pve-row]')!
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    post.mockClear()
+
+    row.remove()
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const types = outgoing(post).map((m) => m.type)
+    expect(types).toContain('payload-visual-editor:deselect')
+    expect((document.querySelector('[data-pve-locked-box]') as HTMLElement).style.display).toBe('none')
   })
 
   it('honors blockOps from hello when rendering chip buttons', () => {
