@@ -238,6 +238,10 @@ pnpm e2e          # Playwright e2e (starts the playground itself)
 
 Playground admin: `http://localhost:3000/admin` — `dev@payloadcms.com` / `test` (seeded on first run; `viewer@payloadcms.com` / `test` is a read-only account for permission testing). Open the seeded **Home** page and switch to Live Preview.
 
+## Changelog
+
+Release notes live in [CHANGELOG.md](./CHANGELOG.md).
+
 ## License
 
 [MIT](./LICENSE)

@@ -1,0 +1,52 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). All three packages (`payload-inline-visual-editor`, `@payload-inline-visual-editor/core`, `@payload-inline-visual-editor/react`) are versioned in lockstep.
+
+## [1.0.0] — 2026-07-20
+
+Initial public release. Requires `payload@^3.85` / `@payloadcms/ui@^3.85` and React 19.
+
+### Added
+
+**Inline editing**
+
+- Edit mode toggle ("Edit on page") in the document edit view, injected via `edit.beforeDocumentControls`.
+- Hover-highlighting of every marked region, labelled with its block name.
+- Double-click a marked region to expand, scroll to, and focus the corresponding field in the admin panel.
+- Near-cursor popover editing in the dedicated view: a leaf region edits the single field, a block/array row edits the row's fields. Rich text renders the full Lexical editor; upload and relationship fields keep their native drawer flows.
+- Cross-document editing — double-clicking a region belonging to another document (a global header, a related doc) opens that document in a drawer without leaving the page.
+
+**Block operations**
+
+- Add above / below, duplicate, remove, and drag-to-reorder rows directly on the page, plus an empty-state "add" affordance on containers.
+- Row identity keys off the stable Payload row `id`, so indices are re-resolved from form state before each op.
+- Per-entity `blockOps` gating (`add` / `duplicate` / `remove` / `move`), with field-level permissions applied on top — the overlay hides affordances the current user cannot update.
+
+**Dedicated editor view**
+
+- Full-screen editor at `/admin/visual-editor/:collectionSlug/:id` (globals: `…/globals/:globalSlug`), with no admin navigation and edit mode already on. Configurable via `view.enabled` / `view.path`.
+- Toolbar with document status, save / publish, locale switcher, and exit — each control toggleable through `toolbar`.
+- Dockable layout panel showing the stock Payload blocks UI beside the page, kept in sync with the preview; a block chip's "show in layout" scrolls to that row with the others collapsed.
+- "Open visual editor" button added to every enabled document's edit view.
+
+**Frontend SDK**
+
+- `@payload-inline-visual-editor/core` — framework-agnostic, vanilla TS, zero runtime deps: `initVisualEditing()`, `pveAttr.scope/field/row/container`, protocol, scanner, bridge, overlay.
+- `@payload-inline-visual-editor/react` — `<VisualEditing/>` and `payloadEditable()` / `.scope()` / `.container()`. The markup helpers return plain prop objects, so they are RSC/SSR-safe.
+- `configurePayloadEditable({ enabled })` strips every `data-pve-*` attribute from production HTML.
+- `draft` prop on `<VisualEditing/>`; the admin warns when the preview renders published-only content.
+
+**Setup**
+
+- Auto-enablement for every collection and global that has a Live Preview URL, or explicit opt-in via `collections` / `globals`. An explicitly listed entity without a preview URL throws at startup with an actionable message.
+- Per-entity `url` override, and a `debug` option for verbose logging on both sides of the bridge.
+- Both stock Live Preview modes supported — client mode (`useLivePreview`) streams changes immediately; SSR mode (`RefreshRouteOnSave`) shows a pending shimmer on the affected container until the page catches up.
+- Cross-origin setups documented (CORS / CSRF / `sameSite: 'None'` cookies).
+
+### Security
+
+- The SDK stays inert until a valid `hello` from the configured admin origin; every message is checked against origin, `event.source`, and a per-load session id. No `'*'` postMessage targets.
+- The intent channel carries paths and row ids only — document data flows exclusively through Payload's stock Live Preview pipeline.
+- Edit mode can only be initiated from an authenticated admin session; all mutations execute in the admin form and pass through Payload's access control on save.

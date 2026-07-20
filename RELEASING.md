@@ -6,7 +6,8 @@ Manual release checklist (no CI publishing).
 
 1. **Naming**: the plugin publishes as `payload-inline-visual-editor`, with the SDK packages under the `@payload-inline-visual-editor/*` scope. The scope must exist as an npm org before the first publish.
 2. Bump the version in `packages/{core,plugin,react}/package.json` (keep all three in lockstep) and `SDK_VERSION` in `packages/core/src/protocol.ts`.
-3. Verify everything from a clean state:
+3. Add the release section to `CHANGELOG.md` — version heading, date, and the changes grouped under Added / Changed / Fixed / Removed / Security.
+4. Verify everything from a clean state:
 
    ```sh
    pnpm clean && pnpm install && pnpm build
@@ -14,7 +15,7 @@ Manual release checklist (no CI publishing).
    pnpm e2e     # starts the dev playground itself
    ```
 
-4. Inspect what would be published (README, LICENSE, and `dist/` only):
+5. Inspect what would be published (README, LICENSE, and `dist/` only):
 
    ```sh
    pnpm -r --filter './packages/*' exec npm pack --dry-run
