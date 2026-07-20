@@ -35,7 +35,7 @@ export type FieldPopoverProps = {
  * component that is not (yet) in form state — the stock client RichTextField
  * renders null. Fetches the component via the `render-field` server function
  * (the Lexical RenderLexical pattern); without a value override it binds to the
- * surrounding Form through FieldPathContext (SPEC §9 v2).
+ * surrounding Form through FieldPathContext.
  */
 const ServerRenderedField = ({ path, schemaPath }: { path: string; schemaPath: string }) => {
   const { _internal_renderField } = useServerFunctions()
@@ -60,7 +60,7 @@ const ServerRenderedField = ({ path, schemaPath }: { path: string; schemaPath: s
 }
 
 /**
- * Near-cursor popover of the v2 dedicated view (SPEC §2, §9): renders the
+ * Near-cursor popover of the dedicated view: renders the
  * selected field subtree with RenderFields bound to the same document Form the
  * docked panel uses — edits flow through the stock form → Live Preview
  * pipeline, and upload/relationship fields keep their native drawers (which

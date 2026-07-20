@@ -4,7 +4,7 @@ import { ACCENT, ACCENT_FILL_MED, ACCENT_FILL_SOFT } from './theme.js'
 
 const LINE_THICKNESS = 3
 
-/** The 3px drop-target line shown while dragging a row (SPEC §8). */
+/** The 3px drop-target line shown while dragging a row. */
 export class DropIndicator {
   private line: HTMLDivElement | null = null
 
@@ -52,7 +52,7 @@ export class DropIndicator {
 }
 
 /**
- * Per-container "operation in flight" shimmer (SPEC §8 SSR pending states).
+ * Per-container "operation in flight" shimmer for SSR pending states.
  * Boxes track their container elements until cleared.
  */
 export class PendingOverlay {
@@ -124,7 +124,7 @@ export type EmptyContainerItem = {
 const MIN_EMPTY_HEIGHT = 40
 
 /**
- * Persistent "+ Add block" affordance over empty containers (SPEC §2 step 4).
+ * Persistent "+ Add block" affordance over empty containers.
  * Empty containers often have zero height, so hover can't reach them — the
  * affordance renders whenever edit mode is on.
  */

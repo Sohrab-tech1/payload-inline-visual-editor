@@ -27,7 +27,7 @@ export const detectOrientation = (rects: RectLike[]): DropOrientation => {
 /**
  * Gap index (0..n insertion position) for a pointer among sibling row rects:
  * the number of rows whose midpoint precedes the pointer along the stacking
- * axis (SPEC §8).
+ * axis.
  */
 export const computeDropGap = (
   rects: RectLike[],

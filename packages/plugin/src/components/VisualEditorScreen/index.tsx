@@ -27,7 +27,7 @@ export type VisualEditorScreenProps = {
 }
 
 /**
- * Client shell of the dedicated view (SPEC §2 v2): fetches the stock document
+ * Client shell of the dedicated view: fetches the stock document
  * edit view through the `render-document` server function (the DocumentDrawer
  * pattern — no `drawerSlug`, so the result includes DocumentControls and the
  * LivePreviewWindow) and hosts it full-viewport. The injected controller

@@ -36,7 +36,7 @@ describe('detectOrientation', () => {
 })
 
 describe('computeDropGap', () => {
-  it('counts rows whose midpoint precedes the pointer (SPEC §8)', () => {
+  it('counts rows whose midpoint precedes the pointer', () => {
     expect(computeDropGap(verticalRows, { x: 10, y: 10 })).toBe(0)
     expect(computeDropGap(verticalRows, { x: 10, y: 60 })).toBe(1)
     expect(computeDropGap(verticalRows, { x: 10, y: 160 })).toBe(2)

@@ -103,7 +103,6 @@ describe('visualEditor config mutation', () => {
     expect(posts.admin?.components).toBeUndefined()
   })
 
-  // M5 (SPEC §11, §13): dedicated view registration + runtime snapshot
   it('registers the dedicated view and stores the runtime snapshot in admin.custom', () => {
     const result = visualEditor()(baseConfig())
 

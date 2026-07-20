@@ -3,7 +3,7 @@ import type { PveMessage, PveMessagePayloads, PveMessageType } from './protocol.
 import { createPveMessage, hasCompatibleVersion, isPveMessage, SDK_VERSION } from './protocol.js'
 
 export type SiteBridgeOptions = {
-  /** Whether the page is rendering draft content; reported in hello-ack so the admin can warn (SPEC §10). */
+  /** Whether the page is rendering draft content; reported in hello-ack so the admin can warn. */
   draft?: boolean
   serverURL: string
   window?: Window

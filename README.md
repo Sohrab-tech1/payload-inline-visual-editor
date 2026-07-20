@@ -2,9 +2,18 @@
 
 Inline visual editing for [Payload CMS](https://payloadcms.com) 3.x — browse your site in Live Preview, toggle edit mode, hover-highlight editable regions, double-click to edit any field with native Payload field UI, and add / duplicate / remove / drag-reorder blocks directly on the page. A dedicated full-screen editor view, cross-document editing drawers, and a toolbar with save / publish / locale round it out.
 
+![Double-clicking a heading opens a popover with the native Payload text field, then a rich text body opens the full Lexical editor with its formatting toolbar — the page updates as you type](docs/media/inline-editing.gif)
+
 The editor is layered on top of core Live Preview: the standard save / publish / autosave / versions / locales flow keeps working unchanged, document data flows through the stock Live Preview pipeline, and every field type (Lexical, uploads, relationships, custom plugin fields) gets native editing for free.
 
-> **Status: 0.1 — early.** APIs may shift before 1.0. The full design lives in [SPEC.md](./SPEC.md).
+> **Status: 0.1 — early.** APIs may shift before 1.0.
+
+## A look around
+
+|  |  |
+|---|---|
+| **Hover to find a block.** Every marked region outlines on hover, labelled with its block name, with row chips for edit · add above / below · duplicate · remove · reorder · show in layout.<br><br>![Hovering a block shows its outline, label and row chips](docs/media/hover-and-chips.png) | **Double-click a block to edit it.** The popover renders the block's own subfields — including uploads and rich text — bound to the same document form the sidebar uses.<br><br>![Double-clicking a hero block opens a popover with its heading, subheading and image fields](docs/media/block-popover.png) |
+| **Or edit a single field.** Double-click any individual marked field to get just that one, anchored next to what you clicked.<br><br>![Double-clicking a button label opens a popover with only that field](docs/media/field-popover.png) | **The full form is still there.** Toggle the layout panel for the stock Payload blocks UI beside the page — the two stay in sync, and "show in layout" jumps from a block to its row.<br><br>![The docked layout panel showing the stock Payload blocks field next to the live page](docs/media/layout-panel.png) |
 
 ## Packages
 

@@ -30,7 +30,7 @@ const flattenFieldPermissions = (
 }
 
 /**
- * Paths-only permission summary for `hello` (SPEC §10). Paths are name-paths
+ * Paths-only permission summary for `hello`. Paths are name-paths
  * (no row indexes), matching how Payload keys sanitized field permissions.
  */
 export const buildPermissionSummary = (args: {

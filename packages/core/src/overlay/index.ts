@@ -6,7 +6,7 @@ const FLASH_MS = 1200
 
 // Hover is transient — drawn translucent so it reads as "not yet committed".
 // Lock (click) is solid: it stays put so the row's chip can be reached and
-// the field stays selected while editing (SPEC §2).
+// the field stays selected while editing.
 const HOVER_OPACITY = '0.55'
 
 const labelCss = (background: string): string =>
@@ -48,7 +48,7 @@ export type OverlayHoverTarget = {
 
 /**
  * Single fixed, pointer-events:none layer appended to <body>. Site CSS is
- * never mutated; chips re-enable pointer events locally (M3). The layer is
+ * never mutated; chips re-enable pointer events locally. The layer is
  * position:fixed so getBoundingClientRect viewport coords map 1:1 — no scroll
  * offset math, and Live Preview's iframe zoom scales everything together.
  */
@@ -230,7 +230,7 @@ export class OverlayRenderer {
     this.refresh()
   }
 
-  /** The persistent "selected" highlight after a click (SPEC §2 click-to-edit). */
+  /** The persistent "selected" highlight after a click. */
   setLocked(target: null | OverlayHoverTarget): void {
     if (this.lockedTarget?.element === target?.element && this.lockedTarget?.label === target?.label) {
       return

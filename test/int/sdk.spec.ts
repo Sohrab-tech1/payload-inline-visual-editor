@@ -93,7 +93,7 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     expect(outgoing(post)).toHaveLength(0)
 
     // ...editing takes a double-click, suppressed and reported with its
-    // geometry (M6: the admin anchors the popover near the cursor)
+    // geometry (the admin anchors the popover near the cursor)
     const dblclick = new MouseEvent('dblclick', { bubbles: true, cancelable: true, clientX: 40, clientY: 25 })
     heading.dispatchEvent(dblclick)
     expect(dblclick.defaultPrevented).toBe(true)
@@ -195,7 +195,6 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     expect(outgoing(post)).toHaveLength(0)
   })
 
-  // M5 (SPEC §9): regions of other documents are doc-switch targets
   it('offers doc-switch on regions of other documents', () => {
     teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
     document.body.insertAdjacentHTML(
@@ -241,7 +240,7 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     expect(outgoing(post)[0]!.payload).toEqual({ scope: 'collection:pages;id:abc' })
   })
 
-  it('shows a row chip on hover and posts ops for its actions (M3)', () => {
+  it('shows a row chip on hover and posts ops for its actions', () => {
     teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
     sendFromAdmin('hello', helloPayload)
     post.mockClear()
@@ -324,7 +323,7 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     expect(lockedBox.style.display).toBe('none')
     expect(chip.style.display).toBe('none')
-    // The admin closes its popover on deselect (M6)
+    // The admin closes its popover on deselect
     expect(outgoing(post).map((m) => m.type)).toEqual(['payload-visual-editor:deselect'])
 
     // Re-lock, then clear by clicking outside any marked region

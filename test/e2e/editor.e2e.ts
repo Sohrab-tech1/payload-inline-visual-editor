@@ -137,7 +137,6 @@ test.describe('visual editor', () => {
     await expect(page.locator('h1')).toContainText('Visual editing for Payload')
   })
 
-  // M1 exit criterion (SPEC §13): hover-highlight works inside admin Live Preview
   test('hover-highlight inside admin Live Preview', async ({ page }) => {
     const frame = await openHomePageInLivePreview(page, 'dev@payloadcms.com')
     await enableEditMode(page)
@@ -162,8 +161,8 @@ test.describe('visual editor', () => {
     await expect(overlay).toHaveCount(0)
   })
 
-  // M2 exit criteria (SPEC §13): select → expand/scroll/focus; reverse focus
-  // flash. Editing takes a double-click — a single click only selects.
+  // Select → expand/scroll/focus; reverse focus flash. Editing takes a
+  // double-click — a single click only selects.
   test('double-click-to-edit focuses the admin form field', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
     // Throwaway page: the shared home draft accumulates blocks across runs,
@@ -215,7 +214,6 @@ test.describe('visual editor', () => {
     await expect(frame.locator('[data-pve-flash-box]')).toBeVisible()
   })
 
-  // M2 exit criteria: permission gating end-to-end — read-only users get no affordances
   test('read-only user sees no edit affordances', async ({ page }) => {
     const frame = await openHomePageInLivePreview(page, 'viewer@payloadcms.com')
     await enableEditMode(page)
@@ -224,7 +222,7 @@ test.describe('visual editor', () => {
     await frame.locator('[data-pve-field="layout.0.heading"]').hover()
     await expect(frame.locator('[data-pve-hover-box]')).toBeHidden()
 
-    // M3: no row chips either
+    // No row chips either
     await frame.locator('[data-pve-block-type="hero"]').hover({ position: { x: 8, y: 8 } })
     await expect(frame.locator('[data-pve-chip]')).toBeHidden()
 
@@ -232,8 +230,8 @@ test.describe('visual editor', () => {
     await expect(page.locator('#field-layout__0__heading')).not.toBeFocused()
   })
 
-  // M3 exit criteria (SPEC §13): row chips, BlocksDrawer add flow,
-  // duplicate/remove, drag-reorder + drop indicators, SSR pending states
+  // Row chips, BlocksDrawer add flow, duplicate/remove, drag-reorder + drop
+  // indicators, SSR pending states
   test('chip add opens the native BlocksDrawer and inserts the picked block', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
     const { frame } = await openTestPage(page)
@@ -335,8 +333,7 @@ test.describe('visual editor', () => {
     await expect(frame.locator('[data-pve-pending]')).toHaveCount(0)
   })
 
-  // M5 exit criteria (SPEC §13): dedicated view via render-document, top
-  // toolbar, doc-switch drawers
+  // Dedicated view via render-document, top toolbar, doc-switch drawers
   test('unauthenticated users are redirected from the dedicated view to login', async ({ page }) => {
     await page.goto('/admin/visual-editor/pages/1')
     await page.waitForURL('**/admin/login?redirect=*')
@@ -358,13 +355,13 @@ test.describe('visual editor', () => {
     const id = await createTestPage(page, 'e2e-view')
     await page.goto(`/admin/visual-editor/pages/${id}`)
 
-    // Live preview is forced on and edit mode auto-enabled (SPEC §2 v2)
+    // Live preview is forced on and edit mode auto-enabled
     const frame = page.frameLocator('iframe#live-preview-iframe')
     await expect(frame.locator('h1')).toContainText('E2E hero', { timeout: 20_000 })
     await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 15_000 })
     await expect(page.locator('.doc-header')).toBeHidden()
 
-    // Double-click-to-edit opens the near-cursor popover (M6) on the shared form
+    // Double-click-to-edit opens the near-cursor popover on the shared form
     await frame.locator('[data-pve-field="layout.0.heading"]').dblclick()
     const popover = page.locator('.pve-popover')
     await expect(popover).toBeVisible()
@@ -431,20 +428,23 @@ test.describe('visual editor', () => {
       await page.locator('.pve-doc-drawer__close').click()
       await expect(drawer).toHaveCount(0)
     } finally {
-      // The header global is shared state — restore the seeded value
+      // The header global is shared state — restore the seeded value (dev/seed.ts)
       await page.request.post('/api/globals/header', {
         data: {
           navItems: [
+            { label: 'Home', url: '/client-mode/landing' },
+            { label: 'About', url: '/client-mode/about' },
+            { label: 'Blog', url: '/posts/designing-for-the-editor' },
             { label: 'Client mode', url: '/client-mode/home' },
-            { label: 'SSR mode', url: '/ssr-mode/home' },
+            { label: 'SSR mode', url: '/ssr-mode/ssr-showcase' },
           ],
         },
       })
     }
   })
 
-  // M6 exit criteria (SPEC §13): RenderFields popover on the shared Form
-  // context, render-field for server components, upload/relationship drawer flows
+  // RenderFields popover on the shared Form context, render-field for server
+  // components, upload/relationship drawer flows
   test('popover edits stream through the shared form to the preview', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
     const id = await createTestPage(page, 'e2e-popover')
@@ -554,7 +554,7 @@ test.describe('visual editor', () => {
     await expect(popover).toBeVisible()
 
     // Lexical only exists as a server-rendered custom component — its presence
-    // proves the customComponents/render-field pipeline (SPEC §9 v2)
+    // proves the customComponents/render-field pipeline
     const editor = popover.locator('[data-lexical-editor="true"]')
     await expect(editor).toBeVisible({ timeout: 15_000 })
     await expect(editor).toContainText('Rich text body')
@@ -565,8 +565,8 @@ test.describe('visual editor', () => {
     await expect(frame.locator('[data-pve-field="layout.1.body"]')).toContainText('Rich text body extended')
   })
 
-  // SPEC §12: save → published document correct — ops only touch the working
-  // draft until the editor publishes, and publishing lands them verbatim.
+  // Save → published document correct — ops only touch the working draft
+  // until the editor publishes, and publishing lands them verbatim.
   test('publishing after block ops lands them in the published document', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
     const { frame, id } = await openTestPage(page, 'e2e-publish')

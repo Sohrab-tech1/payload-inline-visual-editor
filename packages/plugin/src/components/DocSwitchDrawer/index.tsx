@@ -43,7 +43,7 @@ export type CollectionDocDrawerProps = CloseAware & {
 }
 
 /**
- * Doc-switch target for collection documents (SPEC §9): the stock
+ * Doc-switch target for collection documents: the stock
  * DocumentDrawer, opened on mount. Mount keyed by scope so each request gets a
  * fresh drawer.
  */

@@ -14,7 +14,7 @@ export type BlockOpPlan =
   | { rowIndex: number; type: 'remove' }
   | { type: 'noop' }
 
-/** Per-entity plugin config → the op-enable map shipped in `hello` (SPEC §11). */
+/** Per-entity plugin config → the op-enable map shipped in `hello`. */
 export const normalizeBlockOps = (options: BlockOpsOptions | false | undefined): PveBlockOps => {
   if (options === false) {
     return { add: false, duplicate: false, move: false, remove: false }
@@ -44,7 +44,7 @@ const boundedInt = (value: number | undefined, max: number): null | number =>
  * dispatchable plan. Row identity wins over transmitted indexes: the current
  * index is re-resolved from form-state `rows` by id, falling back to the
  * transmitted index only when no id was sent; unknown ids error out → the
- * controller acks `{ ok: false }` (SPEC §6).
+ * controller acks `{ ok: false }`.
  */
 export const planBlockOp = (args: {
   enabledOps: PveBlockOps

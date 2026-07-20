@@ -1,5 +1,5 @@
 /**
- * Admin-form DOM targeting for click-to-edit (SPEC §9, verified on 3.85):
+ * Admin-form DOM targeting for click-to-edit (verified on 3.85):
  * field inputs/wrappers carry `id="field-${path.replace(/\./g, '__')}"`;
  * Lexical rich-text wrappers carry `data-field-path="${path}"`. Row paths
  * (`layout.0`) have no own id — the first `field-layout__0__*` descendant

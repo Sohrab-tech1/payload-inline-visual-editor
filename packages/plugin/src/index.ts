@@ -163,8 +163,8 @@ const controllerComponent = (entityOptions: VisualEditorEntityOptions, pluginOpt
 /**
  * Enables the inline visual editor for collections/globals that have a Live
  * Preview URL (or are explicitly listed). Injects the controller inside the
- * document <Form> via edit.beforeDocumentControls (SPEC §3, §11) and, unless
- * disabled, registers the dedicated view at `view.path` (SPEC §2 v2).
+ * document <Form> via edit.beforeDocumentControls and, unless disabled,
+ * registers the dedicated view at `view.path`.
  */
 export const visualEditor =
   (pluginOptions: VisualEditorOptions = {}) =>

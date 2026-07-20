@@ -86,7 +86,7 @@ type PopoverState = {
  * edit.beforeDocumentControls. Owns the "Edit on page" toggle and the admin
  * half of the editor channel: per-iframe-load handshake, edit-mode relay,
  * click-to-edit (`select` → expand/scroll/focus the form field), reverse
- * focus sync, and block ops (`op` → form row operations + `op-ack`, SPEC §8).
+ * focus sync, and block ops (`op` → form row operations + `op-ack`).
  */
 export const VisualEditorController = ({ blockOps, debug }: VisualEditorControllerProps) => {
   const { breakpoint, iframeRef, isLivePreviewing, loadedURL, setIsLivePreviewing } = useLivePreviewContext()
@@ -152,9 +152,9 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
     }),
   })
 
-  // v2 popover (SPEC §9): resolve the selected path against the client schema
-  // and anchor near the click, translated through the iframe transform. All
-  // inputs are untrusted — unresolvable targets fall back to the v1 focus flow.
+  // Popover: resolve the selected path against the client schema and anchor
+  // near the click, translated through the iframe transform. All inputs are
+  // untrusted — unresolvable targets fall back to the panel focus flow.
   const openPopoverRef = useRef<(payload: PveMessagePayloads['select']) => boolean>(null!)
   openPopoverRef.current = (payload) => {
     const schemaFields = (docConfig?.fields ?? []) as unknown as FieldSchemaLike[]
@@ -235,7 +235,7 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
     focusPanelFieldRef.current(path)
   }
 
-  // Chip "show in layout" (SPEC §9): open the fields panel scoped to the
+  // Chip "show in layout": open the fields panel scoped to the
   // region — its row expanded, every sibling row along the path collapsed.
   const handleRevealRef = useRef<(payload: PveMessagePayloads['reveal']) => void>(null!)
   handleRevealRef.current = (payload) => {
@@ -251,7 +251,7 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
   }
 
   // Only entities the admin actually knows can be drawer targets — the scope
-  // string comes from the untrusted iframe (SPEC §6)
+  // string comes from the untrusted iframe
   const handleDocSwitchRef = useRef<(scope: string) => void>(null!)
   handleDocSwitchRef.current = (scope) => {
     const parsed = parseScope(scope)

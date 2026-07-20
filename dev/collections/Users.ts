@@ -4,7 +4,11 @@ export const Users: CollectionConfig = {
   slug: 'users',
   auth: true,
   admin: {
+    defaultColumns: ['name', 'email'],
     useAsTitle: 'email',
   },
-  fields: [],
+  fields: [
+    { name: 'name', type: 'text' },
+    { name: 'bio', type: 'textarea' },
+  ],
 }

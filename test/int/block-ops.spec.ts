@@ -82,7 +82,7 @@ describe('planBlockOp', () => {
     })
   })
 
-  it('re-resolves row identity by id over the transmitted index (SPEC §6)', () => {
+  it('re-resolves row identity by id over the transmitted index', () => {
     // The SDK saw row-c at index 2, but a row was removed admin-side meanwhile
     const shifted: FormRowsLike = {
       layout: { rows: [{ id: 'row-a' }, { id: 'row-c' }] },

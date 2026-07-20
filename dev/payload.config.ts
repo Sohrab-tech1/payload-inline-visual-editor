@@ -6,8 +6,10 @@ import { visualEditor } from 'payload-inline-visual-editor'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
+import { Categories } from './collections/Categories'
 import { Media } from './collections/Media'
 import { Pages } from './collections/Pages'
+import { Posts } from './collections/Posts'
 import { Users } from './collections/Users'
 import { Header } from './globals/Header'
 import { seed } from './seed'
@@ -19,7 +21,7 @@ export default buildConfig({
     importMap: { baseDir: dirname },
     user: 'users',
   },
-  collections: [Pages, Media, Users],
+  collections: [Pages, Posts, Categories, Media, Users],
   db: sqliteAdapter({
     client: { url: process.env.DATABASE_URI ?? `file:${path.resolve(dirname, 'dev.db')}` },
   }),

@@ -4,7 +4,7 @@ Manual release checklist (no CI publishing).
 
 ## Pre-flight
 
-1. **Naming** (first release only): confirm the final npm names — `payload-visual-editor` and `payloadcms-visual-editor` are taken; current working name is `payload-inline-visual-editor` + the `@payload-inline-visual-editor/*` scope (SPEC §15). The scope must exist as an npm org before publishing.
+1. **Naming** (first release only): confirm the final npm names — `payload-visual-editor` and `payloadcms-visual-editor` are taken; current working name is `payload-inline-visual-editor` + the `@payload-inline-visual-editor/*` scope. The scope must exist as an npm org before publishing.
 2. Bump the version in `packages/{core,plugin,react}/package.json` (keep all three in lockstep) and `SDK_VERSION` in `packages/core/src/protocol.ts`.
 3. Verify everything from a clean state:
 

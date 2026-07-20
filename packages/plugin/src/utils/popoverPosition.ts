@@ -8,7 +8,7 @@ export type IframeRectLike = { left: number; top: number; width: number }
  * Map a point in iframe-viewport CSS pixels to admin-viewport coordinates.
  * Live Preview scales the iframe with a CSS transform: its bounding rect is the
  * visual (scaled) box while the layout width is the device width — their ratio
- * is the effective scale for any zoom/breakpoint combination (SPEC §9 v2).
+ * is the effective scale for any zoom/breakpoint combination.
  */
 export const translateIframePoint = (args: {
   /** The iframe's layout size (offsetWidth/offsetHeight) — unaffected by the transform. */

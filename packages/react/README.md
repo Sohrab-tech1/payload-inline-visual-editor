@@ -2,6 +2,8 @@
 
 React/Next adapter for [payload-inline-visual-editor](https://github.com/what-digital/payload-inline-visual-editor) — inline visual editing for Payload CMS 3.x.
 
+![Double-clicking a heading opens a popover with the native Payload text field, then a rich text body opens the full Lexical editor with its formatting toolbar — the page updates as you type](https://raw.githubusercontent.com/what-digital/payload-inline-visual-editor/main/docs/media/inline-editing.gif)
+
 ## Usage
 
 Mark up editable regions (RSC/SSR-safe — the helpers return plain string props):

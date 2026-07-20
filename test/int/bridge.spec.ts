@@ -132,7 +132,7 @@ describe('admin ⇄ site bridge handshake', () => {
     admin.destroy()
   })
 
-  it('reports draft status in hello-ack (SPEC §10)', () => {
+  it('reports draft status in hello-ack', () => {
     const admin = new AdminBridge({
       getTargetWindow: () => frames.siteContentWindow,
       targetOrigin: SITE_ORIGIN,

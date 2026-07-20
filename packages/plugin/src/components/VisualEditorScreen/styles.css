@@ -1,4 +1,4 @@
-/* Dedicated-view shell (SPEC §2 v2): the stock edit view rendered bare, with
+/* Dedicated-view shell: the stock edit view rendered bare, with
    the document header hidden, the fields panel docked left, and the live
    preview window filling the rest. Class names of restyled Payload internals
    are pinned to @payloadcms/ui 3.x — treat breakage like payload-internals.ts. */
@@ -83,7 +83,7 @@
   padding: 0.25rem 0.5rem;
 }
 
-/* Near-cursor field popover (SPEC §9 v2). Rendered only in shell mode, so this
+/* Near-cursor field popover. Rendered only in shell mode, so this
    stylesheet (imported by the shell) always covers it. Kept under Payload's
    modal layer — the field's own drawers must stack above it. */
 .pve-popover {

@@ -84,7 +84,7 @@ const icon = (doc: Document, name: 'drag' | RowChipAction): SVGSVGElement => {
 
 /**
  * Floating action chip anchored to the hovered row: add above/below,
- * duplicate, remove, drag handle (SPEC §2, §8). Lives inside the overlay
+ * duplicate, remove, drag handle. Lives inside the overlay
  * layer; re-enables pointer-events locally.
  */
 export class RowChip {

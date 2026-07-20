@@ -5,7 +5,7 @@ import type { BlockSchemaLike, FieldSchemaLike } from './fieldPaths.js'
 import { resolveDataPath } from './fieldPaths.js'
 
 /**
- * What the v2 popover renders for a selected region (SPEC §9): a leaf field
+ * What the popover renders for a selected region: a leaf field
  * renders itself; an array/blocks row renders the row's subfields. The parent
  * paths feed RenderFields, which re-derives each child's data/schema path with
  * Payload's own getFieldPaths — so they must follow the same conventions
@@ -144,8 +144,8 @@ export type ResolvePopoverPermissionsArgs = {
 /**
  * The sanitized permissions map governing the popover's rendered fields: the
  * target's parent for leaf fields, the block/array container for rows.
- * Missing entries default to permissive — the server stays authoritative
- * (SPEC §10), this only mirrors what the stock panel shows.
+ * Missing entries default to permissive — the server stays authoritative,
+ * this only mirrors what the stock panel shows.
  */
 export const resolvePopoverPermissions = ({
   fields,

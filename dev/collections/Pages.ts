@@ -4,7 +4,7 @@ import { layoutBlocks } from '../blocks'
 
 const serverURL = process.env.NEXT_PUBLIC_SERVER_URL ?? 'http://localhost:3000'
 
-// The viewer account exercises permission gating end-to-end (SPEC §10):
+// The viewer account exercises permission gating end-to-end:
 // it can open documents in the admin but cannot update them.
 export const VIEWER_EMAIL = 'viewer@payloadcms.com'
 
@@ -22,7 +22,7 @@ export const Pages: CollectionConfig = {
         { name: 'desktop', label: 'Desktop', width: 1440, height: 900 },
       ],
       // Pages with an `ssr-` slug prefix preview through the RefreshRouteOnSave
-      // route — exercises SSR-mode op latency/pending states (SPEC §8)
+      // route — exercises SSR-mode op latency/pending states
       url: ({ data }) =>
         `${serverURL}/${String(data?.slug ?? '').startsWith('ssr-') ? 'ssr-mode' : 'client-mode'}/${data?.slug ?? ''}`,
     },

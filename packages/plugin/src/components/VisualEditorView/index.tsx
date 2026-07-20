@@ -8,8 +8,8 @@ import { parseViewSegments } from '../../utils/viewPath.js'
 import { VisualEditorScreen } from '../VisualEditorScreen/index.js'
 
 /**
- * Server component behind the dedicated view route (SPEC §13 M5). Custom admin
- * views bypass Payload's auth redirect, so authentication is enforced here.
+ * Server component behind the dedicated view route. Custom admin views bypass
+ * Payload's auth redirect, so authentication is enforced here.
  */
 export const VisualEditorView = ({ initPageResult, params, searchParams }: AdminViewServerProps) => {
   const { req } = initPageResult

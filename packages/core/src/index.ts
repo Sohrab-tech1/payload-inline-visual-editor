@@ -33,14 +33,14 @@ export type VisualEditingOptions = {
   /**
    * Whether the page is rendering draft content (e.g. Next `draftMode().isEnabled`).
    * Reported to the admin, which warns when the preview shows published-only
-   * content — edits would not appear until published (SPEC §10).
+   * content — edits would not appear until published.
    */
   draft?: boolean
   serverURL: string
 }
 
 // Shimmer starts only if the page hasn't re-rendered shortly after an op-ack
-// (client mode re-renders in ~100ms; SSR takes 1–3s — SPEC §8) and self-clears
+// (client mode re-renders in ~100ms; SSR takes 1–3s) and self-clears
 // as a safety net if no re-render ever lands.
 const SHIMMER_DELAY_MS = 300
 const SHIMMER_TIMEOUT_MS = 8000
@@ -137,7 +137,7 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     return humanizePathTail(region.path)
   }
 
-  /** Label for a region of another document: the entity name (SPEC §9 doc-switch). */
+  /** Label for a region of another document: the entity name. */
   const scopeLabel = (scope: string): string => {
     const parsed = parseScope(scope)
     if (!parsed) {
@@ -157,7 +157,7 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
 
   const getBlockType = (rowPath: string): string | undefined => rowBlockTypes.get(rowPath)
 
-  // Affordance-level gating only (SPEC §10) — the admin form and server access
+  // Affordance-level gating only — the admin form and server access
   // control remain authoritative for anything the iframe requests.
   const isEditable = (region: ScannedRegion): boolean => {
     if (!scopeMatchesDoc(region.scope, docs)) {
@@ -413,7 +413,7 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
 
   // The chip pins to the locked row when one is set, so it can be reached
   // without the pointer needing to stay over the row; otherwise it follows the
-  // hovered row (SPEC §2). Switch regions never get a chip. Edit and
+  // hovered row. Switch regions never get a chip. Edit and
   // show-in-layout ride on row editability alone, independent of block-op config.
   const syncChip = (): void => {
     const active = locked ?? hovered
@@ -463,7 +463,7 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
   /**
    * Click-to-lock: a persistent "selected" highlight that keeps the row's chip
    * reachable. Clearing the lock or moving it to a different region notifies
-   * the admin (`deselect` — closes the v2 popover) unless the change was
+   * the admin (`deselect` — closes the popover) unless the change was
    * admin-initiated in the first place.
    */
   const setLocked = (region: null | ScannedRegion, opts: { notify: boolean } = { notify: true }): void => {
