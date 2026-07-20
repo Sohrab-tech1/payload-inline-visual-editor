@@ -14,6 +14,7 @@ export type {
 } from './utils/fieldPaths.js'
 export {
   collectRowExpansions,
+  collectRowIsolation,
   fieldElementId,
   findFieldElement,
   focusFormField,

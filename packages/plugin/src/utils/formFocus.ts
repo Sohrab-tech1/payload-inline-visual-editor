@@ -76,6 +76,39 @@ export const collectRowExpansions = <R extends RowLike>(
   return expansions
 }
 
+/**
+ * SET_ROW_COLLAPSED payloads that isolate a data path in the fields panel
+ * ("show in layout"): in every ancestor container along the path, the path's
+ * own row is expanded and all sibling rows collapse. Like the expansions
+ * above, dispatching these is transient — no collapse preferences, no form
+ * modified state.
+ */
+export const collectRowIsolation = <R extends RowLike>(
+  fields: Record<string, { rows?: R[] } | undefined>,
+  path: string,
+): RowExpansion<R>[] => {
+  const segments = path.split('.')
+  const isolations: RowExpansion<R>[] = []
+  for (let i = 1; i < segments.length; i++) {
+    if (!/^\d+$/.test(segments[i]!)) {
+      continue
+    }
+    const containerPath = segments.slice(0, i).join('.')
+    const rowIndex = Number(segments[i])
+    const rows = fields[containerPath]?.rows
+    if (!rows?.length) {
+      continue
+    }
+    if (rows.some((row, index) => Boolean(row.collapsed) !== (index !== rowIndex))) {
+      isolations.push({
+        path: containerPath,
+        updatedRows: rows.map((row, index) => ({ ...row, collapsed: index !== rowIndex }) as R),
+      })
+    }
+  }
+  return isolations
+}
+
 const FOCUSABLE_SELECTOR = 'input:not([type="hidden"]), textarea, select, [contenteditable="true"]'
 
 // Collapsed rows keep their fields mounted behind aria-hidden + inline

@@ -85,12 +85,18 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     row.dispatchEvent(new Event('pointermove', { bubbles: true }))
     expect(label.textContent).toBe('Hero section')
 
-    // Click-to-select is suppressed and reported with its geometry (M6: the
-    // admin anchors the popover near the cursor)
+    // A single click only selects (lock, no edit request)...
     post.mockClear()
     const click = new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 40, clientY: 25 })
     heading.dispatchEvent(click)
     expect(click.defaultPrevented).toBe(true)
+    expect(outgoing(post)).toHaveLength(0)
+
+    // ...editing takes a double-click, suppressed and reported with its
+    // geometry (M6: the admin anchors the popover near the cursor)
+    const dblclick = new MouseEvent('dblclick', { bubbles: true, cancelable: true, clientX: 40, clientY: 25 })
+    heading.dispatchEvent(dblclick)
+    expect(dblclick.defaultPrevented).toBe(true)
     messages = outgoing(post)
     expect(messages.map((m) => m.type)).toEqual(['payload-visual-editor:select'])
     expect(messages[0]!.payload).toMatchObject({
@@ -162,8 +168,8 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     // ...but hover/select walk up to the editable row region
     expect(label.textContent).toBe('Hero section')
 
-    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
-    heading.dispatchEvent(click)
+    const dblclick = new MouseEvent('dblclick', { bubbles: true, cancelable: true })
+    heading.dispatchEvent(dblclick)
     const selects = outgoing(post).filter((m) => m.type === 'payload-visual-editor:select')
     expect(selects).toHaveLength(1)
     expect(selects[0]!.payload).toMatchObject({ path: 'layout.0' })
@@ -185,6 +191,7 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     const click = new MouseEvent('click', { bubbles: true, cancelable: true })
     heading.dispatchEvent(click)
     expect(click.defaultPrevented).toBe(false)
+    heading.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
     expect(outgoing(post)).toHaveLength(0)
   })
 
@@ -208,9 +215,14 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     expect(outgoing(post)).toHaveLength(0)
     expect((document.querySelector('[data-pve-chip]') as HTMLElement).style.display).toBe('none')
 
+    // Single click blocks navigation but the switch itself takes a double-click
     const click = new MouseEvent('click', { bubbles: true, cancelable: true })
     nav.dispatchEvent(click)
     expect(click.defaultPrevented).toBe(true)
+    expect(outgoing(post)).toHaveLength(0)
+    const dblclick = new MouseEvent('dblclick', { bubbles: true, cancelable: true })
+    nav.dispatchEvent(dblclick)
+    expect(dblclick.defaultPrevented).toBe(true)
     const messages = outgoing(post)
     expect(messages.map((m) => m.type)).toEqual(['payload-visual-editor:doc-switch-request'])
     expect(messages[0]!.payload).toEqual({ scope: 'global:header' })
@@ -224,8 +236,7 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
 
     post.mockClear()
     const heading = document.querySelector('[data-pve-field="layout.0.heading"]')!
-    const pageClick = new MouseEvent('click', { bubbles: true, cancelable: true })
-    heading.dispatchEvent(pageClick)
+    heading.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
     expect(outgoing(post).map((m) => m.type)).toEqual(['payload-visual-editor:doc-switch-request'])
     expect(outgoing(post)[0]!.payload).toEqual({ scope: 'collection:pages;id:abc' })
   })
@@ -242,7 +253,7 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     const actions = [...chip.querySelectorAll('[data-pve-chip-action]')].map((el) =>
       el.getAttribute('data-pve-chip-action'),
     )
-    expect(actions).toEqual(['add-above', 'add-below', 'duplicate', 'remove'])
+    expect(actions).toEqual(['edit', 'add-above', 'add-below', 'duplicate', 'remove', 'show-in-layout'])
 
     post.mockClear()
     ;(chip.querySelector('[data-pve-chip-action="duplicate"]') as HTMLElement).click()
@@ -325,6 +336,24 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     expect(outgoing(post).map((m) => m.type)).toEqual(['payload-visual-editor:deselect'])
   })
 
+  it('moves the lock on a click elsewhere, notifying the admin (stale popover closes)', () => {
+    document
+      .querySelector('[data-pve-container]')!
+      .insertAdjacentHTML(
+        'beforeend',
+        '<section data-pve-field="layout.1" data-pve-row="row2" data-pve-block-type="cta">B</section>',
+      )
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    const rows = document.querySelectorAll('[data-pve-row]')
+    rows[0]!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    post.mockClear()
+    rows[1]!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    expect(outgoing(post).map((m) => m.type)).toEqual(['payload-visual-editor:deselect'])
+    expect((document.querySelector('[data-pve-locked-box]') as HTMLElement).style.display).toBe('block')
+  })
+
   it('clears the lock silently on an admin deselect (popover closed)', () => {
     teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
     sendFromAdmin('hello', helloPayload)
@@ -369,7 +398,38 @@ describe('initVisualEditing (site SDK end-to-end)', () => {
     const actions = [...chip.querySelectorAll('[data-pve-chip-action]')].map((el) =>
       el.getAttribute('data-pve-chip-action'),
     )
-    expect(actions).toEqual(['remove'])
+    // edit / show-in-layout ride on editability, not block-op config
+    expect(actions).toEqual(['edit', 'remove', 'show-in-layout'])
+  })
+
+  it('posts select for the row from the chip edit button and locks it', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    document.querySelector('[data-pve-row]')!.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    post.mockClear()
+    const chip = document.querySelector('[data-pve-chip]') as HTMLElement
+    ;(chip.querySelector('[data-pve-chip-action="edit"]') as HTMLElement).click()
+
+    const messages = outgoing(post)
+    expect(messages.map((m) => m.type)).toEqual(['payload-visual-editor:select'])
+    expect(messages[0]!.payload).toMatchObject({ path: 'layout.0', scope: 'collection:pages;id:abc' })
+    expect((document.querySelector('[data-pve-locked-box]') as HTMLElement).style.display).toBe('block')
+  })
+
+  it('posts reveal from the chip show-in-layout button', () => {
+    teardown = initVisualEditing({ serverURL: ADMIN_ORIGIN })
+    sendFromAdmin('hello', helloPayload)
+
+    document.querySelector('[data-pve-row]')!.dispatchEvent(new Event('pointermove', { bubbles: true }))
+    post.mockClear()
+    const chip = document.querySelector('[data-pve-chip]') as HTMLElement
+    ;(chip.querySelector('[data-pve-chip-action="show-in-layout"]') as HTMLElement).click()
+
+    const messages = outgoing(post)
+    expect(messages.map((m) => m.type)).toEqual(['payload-visual-editor:reveal'])
+    expect(messages[0]!.payload).toMatchObject({ path: 'layout.0', scope: 'collection:pages;id:abc' })
+    expect((document.querySelector('[data-pve-locked-box]') as HTMLElement).style.display).toBe('block')
   })
 
   it('offers no chip to read-only users', () => {

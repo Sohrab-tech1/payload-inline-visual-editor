@@ -308,7 +308,24 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
   const chip = new RowChip({
     onAction: (action: RowChipAction) => {
       const row = chipRegion
-      if (!row || !row.rowId) {
+      if (!row) {
+        return
+      }
+      if (action === 'edit') {
+        // Anchor the popover near the chip (top-right of the row)
+        const rect = row.element.getBoundingClientRect()
+        sendSelect(row, {
+          x: Math.max(8, Math.min(rect.right - 12, window.innerWidth - 8)),
+          y: Math.max(8, Math.min(rect.top + 12, window.innerHeight - 8)),
+        })
+        return
+      }
+      if (action === 'show-in-layout') {
+        setLocked(row)
+        bridge.send('reveal', { path: row.path, regionId: row.regionId, scope: row.scope })
+        return
+      }
+      if (!row.rowId) {
         return
       }
       const containerPath = containerPathOf(row.path)
@@ -396,15 +413,21 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
 
   // The chip pins to the locked row when one is set, so it can be reached
   // without the pointer needing to stay over the row; otherwise it follows the
-  // hovered row (SPEC §2). Switch regions never get a chip.
+  // hovered row (SPEC §2). Switch regions never get a chip. Edit and
+  // show-in-layout ride on row editability alone, independent of block-op config.
   const syncChip = (): void => {
     const active = locked ?? hovered
     const switching = active ? isSwitchRegion(active) : false
     const chipRow = active && !switching ? rowRegionFor(active) : null
     const ops = chipRow && !bridge.readOnly ? opsForRow(chipRow) : null
-    if (chipRow && ops) {
+    const editable = chipRow !== null && !bridge.readOnly && isEditable(chipRow)
+    if (chipRow && (ops || editable)) {
       chipRegion = chipRow
-      chip.show(chipRow.element, ops)
+      chip.show(chipRow.element, {
+        ...(ops ?? { add: false, duplicate: false, move: false, remove: false }),
+        edit: editable,
+        reveal: editable,
+      })
     } else {
       chipRegion = null
       chip.hide()
@@ -439,20 +462,35 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
 
   /**
    * Click-to-lock: a persistent "selected" highlight that keeps the row's chip
-   * reachable. Clearing notifies the admin (`deselect` — closes the v2 popover)
-   * unless the clear was admin-initiated in the first place.
+   * reachable. Clearing the lock or moving it to a different region notifies
+   * the admin (`deselect` — closes the v2 popover) unless the change was
+   * admin-initiated in the first place.
    */
   const setLocked = (region: null | ScannedRegion, opts: { notify: boolean } = { notify: true }): void => {
     if (locked?.regionId === region?.regionId && locked?.element === region?.element) {
       return
     }
     const hadLock = locked !== null
+    const changedIdentity = locked?.regionId !== region?.regionId
     locked = region
     overlay.setLocked(region ? { element: region.element, label: regionLabel(region) } : null)
     syncChip()
-    if (opts.notify && hadLock && !region) {
+    if (opts.notify && hadLock && changedIdentity) {
       bridge.send('deselect', null)
     }
+  }
+
+  /** Lock the region (rows stand in for their leaves) and ask the admin to edit it. */
+  const sendSelect = (region: ScannedRegion, point?: { x: number; y: number }): void => {
+    setLocked(rowRegionFor(region) ?? region)
+    const rect = region.element.getBoundingClientRect()
+    bridge.send('select', {
+      path: region.path,
+      point,
+      rect: { height: rect.height, width: rect.width, x: rect.left, y: rect.top },
+      regionId: region.regionId,
+      scope: region.scope,
+    })
   }
 
   const regionFromEventTarget = (target: EventTarget | null): null | ScannedRegion => {
@@ -491,6 +529,8 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     }
   }
 
+  // Single click only selects (lock + chip); editing waits for a double-click
+  // or the chip's edit button, so browsing marked content doesn't spawn popovers.
   const onClick = (event: MouseEvent): void => {
     if (overlay.layerContains(event.target)) {
       return
@@ -503,18 +543,34 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
     }
     event.preventDefault()
     event.stopPropagation()
+    if (!isSwitchRegion(region)) {
+      setLocked(rowRegionFor(region) ?? region)
+    }
+  }
+
+  const onDblClick = (event: MouseEvent): void => {
+    if (overlay.layerContains(event.target)) {
+      return
+    }
+    const region = regionFromEventTarget(event.target)
+    if (!region) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    window.getSelection?.()?.removeAllRanges()
     if (isSwitchRegion(region)) {
       bridge.send('doc-switch-request', { scope: region.scope })
     } else {
-      setLocked(rowRegionFor(region) ?? region)
-      const rect = region.element.getBoundingClientRect()
-      bridge.send('select', {
-        path: region.path,
-        point: { x: event.clientX, y: event.clientY },
-        rect: { height: rect.height, width: rect.width, x: rect.left, y: rect.top },
-        regionId: region.regionId,
-        scope: region.scope,
-      })
+      sendSelect(region, { x: event.clientX, y: event.clientY })
+    }
+  }
+
+  // The second mousedown of a double-click would select a word — suppress it
+  // on marked regions so dblclick-to-edit doesn't highlight page text.
+  const onMouseDown = (event: MouseEvent): void => {
+    if (event.detail > 1 && !overlay.layerContains(event.target) && regionFromEventTarget(event.target)) {
+      event.preventDefault()
     }
   }
 
@@ -539,12 +595,16 @@ export const initVisualEditing = (options: VisualEditingOptions): (() => void) =
       registry.start()
       document.addEventListener('pointermove', onPointerMove, { passive: true })
       document.documentElement.addEventListener('pointerleave', onPointerLeave)
+      document.addEventListener('mousedown', onMouseDown, { capture: true })
       document.addEventListener('click', onClick, { capture: true })
+      document.addEventListener('dblclick', onDblClick, { capture: true })
       document.addEventListener('keydown', onKeyDown)
     } else {
       document.removeEventListener('pointermove', onPointerMove)
       document.documentElement.removeEventListener('pointerleave', onPointerLeave)
+      document.removeEventListener('mousedown', onMouseDown, { capture: true })
       document.removeEventListener('click', onClick, { capture: true })
+      document.removeEventListener('dblclick', onDblClick, { capture: true })
       document.removeEventListener('keydown', onKeyDown)
       dragCleanup?.()
       dragCleanup = null

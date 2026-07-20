@@ -1,6 +1,6 @@
 # payload-inline-visual-editor
 
-Inline visual editing for [Payload CMS](https://payloadcms.com) 3.x — browse your site in Live Preview, toggle edit mode, hover-highlight editable regions, click to edit any field with native Payload field UI, and add / duplicate / remove / drag-reorder blocks directly on the page. Includes a dedicated full-screen editor view at `/admin/visual-editor/:collectionSlug/:id` and cross-document editing drawers.
+Inline visual editing for [Payload CMS](https://payloadcms.com) 3.x — browse your site in Live Preview, toggle edit mode, hover-highlight editable regions, double-click to edit any field with native Payload field UI, and add / duplicate / remove / drag-reorder blocks directly on the page. Includes a dedicated full-screen editor view at `/admin/visual-editor/:collectionSlug/:id` and cross-document editing drawers.
 
 This is the Payload plugin (admin side). Pair it with:
 

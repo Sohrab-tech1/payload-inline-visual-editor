@@ -80,6 +80,8 @@ export type PveMessagePayloads = {
   op: PveOp
   'op-ack': { error?: string; ok: boolean; opId: string }
   regions: { regions: PveRegion[] }
+  /** Chip "show in layout": reveal the region's field in the admin fields panel, isolating its ancestor rows. */
+  reveal: { path: string; regionId: string; scope: string }
   select: { path: string; regionId: string; scope: string } & PveRegionGeometry
 }
 

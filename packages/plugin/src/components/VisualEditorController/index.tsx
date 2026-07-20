@@ -28,7 +28,13 @@ import {
 import { AdminBridge } from '../../utils/adminBridge.js'
 import { normalizeBlockOps, planBlockOp, resolveRowIndexById } from '../../utils/blockOps.js'
 import { resolveDataPath } from '../../utils/fieldPaths.js'
-import { collectRowExpansions, focusFormField, isValidDataPath, pathFromFormElement } from '../../utils/formFocus.js'
+import {
+  collectRowExpansions,
+  collectRowIsolation,
+  focusFormField,
+  isValidDataPath,
+  pathFromFormElement,
+} from '../../utils/formFocus.js'
 import { buildDocRef, buildPermissionSummary, collectBlockLabels } from '../../utils/helloPayload.js'
 import { translateIframePoint } from '../../utils/popoverPosition.js'
 import { popoverLabel, resolvePopoverPermissions, resolvePopoverTarget } from '../../utils/popoverTarget.js'
@@ -197,6 +203,23 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
     return true
   }
 
+  // Scroll/focus a field in the fields panel — opening the shell's panel first
+  // if it is hidden, with a beat for React to commit before measuring.
+  const focusPanelFieldRef = useRef<(path: string) => void>(null!)
+  focusPanelFieldRef.current = (path) => {
+    const wasHidden = Boolean(shell?.panelCollapsed)
+    shell?.setPanelCollapsed(false)
+    const seq = ++selectSeqRef.current
+    const run = (): void => {
+      void focusFormField({ path, shouldContinue: () => selectSeqRef.current === seq })
+    }
+    if (wasHidden) {
+      setTimeout(run, 100)
+    } else {
+      run()
+    }
+  }
+
   const handleSelectRef = useRef<(payload: PveMessagePayloads['select']) => void>(null!)
   handleSelectRef.current = (payload) => {
     const { path } = payload
@@ -209,8 +232,22 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
     if (shell && !inDrawer && openPopoverRef.current(payload)) {
       return
     }
-    const seq = ++selectSeqRef.current
-    void focusFormField({ path, shouldContinue: () => selectSeqRef.current === seq })
+    focusPanelFieldRef.current(path)
+  }
+
+  // Chip "show in layout" (SPEC §9): open the fields panel scoped to the
+  // region — its row expanded, every sibling row along the path collapsed.
+  const handleRevealRef = useRef<(payload: PveMessagePayloads['reveal']) => void>(null!)
+  handleRevealRef.current = (payload) => {
+    const { path } = payload
+    if (!isValidDataPath(path)) {
+      return
+    }
+    setPopover(null)
+    for (const isolation of collectRowIsolation(getFields(), path)) {
+      dispatchFields({ path: isolation.path, type: 'SET_ROW_COLLAPSED', updatedRows: isolation.updatedRows })
+    }
+    focusPanelFieldRef.current(path)
   }
 
   // Only entities the admin actually knows can be drawer targets — the scope
@@ -340,6 +377,9 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
         case 'payload-visual-editor:regions':
           regionPathsRef.current = new Set(message.payload.regions.map((region) => region.path))
           regionsRef.current = new Map(message.payload.regions.map((region) => [region.regionId, region]))
+          break
+        case 'payload-visual-editor:reveal':
+          handleRevealRef.current(message.payload)
           break
         case 'payload-visual-editor:select':
           handleSelectRef.current(message.payload)
@@ -517,7 +557,7 @@ export const VisualEditorController = ({ blockOps, debug }: VisualEditorControll
             onClick={() => shell.setPanelCollapsed(!shell.panelCollapsed)}
             size="small"
           >
-            {shell.panelCollapsed ? 'Show fields' : 'Hide fields'}
+            {shell.panelCollapsed ? 'Show layout' : 'Hide layout'}
           </Button>
           {shell.toolbar.exit ? (
             <Button buttonStyle="secondary" el="link" size="small" to={shell.exitUrl}>

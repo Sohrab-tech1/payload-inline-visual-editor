@@ -162,8 +162,9 @@ test.describe('visual editor', () => {
     await expect(overlay).toHaveCount(0)
   })
 
-  // M2 exit criteria (SPEC §13): select → expand/scroll/focus; reverse focus flash
-  test('click-to-edit focuses the admin form field', async ({ page }) => {
+  // M2 exit criteria (SPEC §13): select → expand/scroll/focus; reverse focus
+  // flash. Editing takes a double-click — a single click only selects.
+  test('double-click-to-edit focuses the admin form field', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
     // Throwaway page: the shared home draft accumulates blocks across runs,
     // which shifts layout indices this test depends on
@@ -176,16 +177,21 @@ test.describe('visual editor', () => {
       },
     ])
 
+    // A single click only locks the selection on the page
     await frame.locator('[data-pve-field="layout.0.heading"]').click()
+    await expect(frame.locator('[data-pve-locked-box]')).toBeVisible()
     const heading = page.locator('#field-layout__0__heading')
+    await expect(heading).not.toBeFocused()
+
+    await frame.locator('[data-pve-field="layout.0.heading"]').dblclick()
     await expect(heading).toBeFocused()
 
     // A field nested in blocks-in-arrays-in-blocks resolves too
-    await frame.locator('[data-pve-field="layout.1.columns.0.content.0.label"]').click()
+    await frame.locator('[data-pve-field="layout.1.columns.0.content.0.label"]').dblclick()
     await expect(page.locator('#field-layout__1__columns__0__content__0__label')).toBeFocused()
   })
 
-  test('click-to-edit expands a collapsed block row first', async ({ page }) => {
+  test('double-click-to-edit expands a collapsed block row first', async ({ page }) => {
     const frame = await openHomePageInLivePreview(page, 'dev@payloadcms.com')
     await enableEditMode(page)
     await ensureHeroRowExpanded(page)
@@ -195,7 +201,7 @@ test.describe('visual editor', () => {
     await heroToggle.click()
     await expect(heading).toBeHidden()
 
-    await frame.locator('[data-pve-field="layout.0.heading"]').click()
+    await frame.locator('[data-pve-field="layout.0.heading"]').dblclick()
     await expect(heading).toBeVisible()
     await expect(heading).toBeFocused()
   })
@@ -222,7 +228,7 @@ test.describe('visual editor', () => {
     await frame.locator('[data-pve-block-type="hero"]').hover({ position: { x: 8, y: 8 } })
     await expect(frame.locator('[data-pve-chip]')).toBeHidden()
 
-    await frame.locator('[data-pve-field="layout.0.heading"]').click()
+    await frame.locator('[data-pve-field="layout.0.heading"]').dblclick()
     await expect(page.locator('#field-layout__0__heading')).not.toBeFocused()
   })
 
@@ -358,19 +364,20 @@ test.describe('visual editor', () => {
     await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 15_000 })
     await expect(page.locator('.doc-header')).toBeHidden()
 
-    // Click-to-edit opens the near-cursor popover (M6) on the shared form
-    await frame.locator('[data-pve-field="layout.0.heading"]').click()
+    // Double-click-to-edit opens the near-cursor popover (M6) on the shared form
+    await frame.locator('[data-pve-field="layout.0.heading"]').dblclick()
     const popover = page.locator('.pve-popover')
     await expect(popover).toBeVisible()
     await expect(popover.locator('#field-layout__0__heading')).toBeFocused()
     await popover.getByRole('button', { name: 'Close' }).click()
     await expect(popover).toHaveCount(0)
 
-    // Fields panel collapses for a full-bleed preview
-    await page.getByRole('button', { name: 'Hide fields' }).click()
+    // The layout panel starts hidden (popover editing is primary) and toggles
     await expect(page.locator('.collection-edit__main')).toBeHidden()
-    await page.getByRole('button', { name: 'Show fields' }).click()
+    await page.getByRole('button', { name: 'Show layout' }).click()
     await expect(page.locator('.collection-edit__main')).toBeVisible()
+    await page.getByRole('button', { name: 'Hide layout' }).click()
+    await expect(page.locator('.collection-edit__main')).toBeHidden()
 
     // Exit returns to the stock edit view
     await page.getByRole('link', { name: 'Exit' }).click()
@@ -394,7 +401,7 @@ test.describe('visual editor', () => {
     expect(await publishedLayout(page, id)).toEqual(['hero', 'hero', 'cta'])
   })
 
-  test('clicking a header region opens the global in a doc-switch drawer', async ({ page }) => {
+  test('double-clicking a header region opens the global in a doc-switch drawer', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
     const id = await createTestPage(page, 'e2e-doc-switch')
     await page.goto(`/admin/visual-editor/pages/${id}`)
@@ -402,11 +409,11 @@ test.describe('visual editor', () => {
     const frame = page.frameLocator('iframe#live-preview-iframe')
     await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
 
-    // Hover names the other document; click opens it in a drawer
+    // Hover names the other document; double-click opens it in a drawer
     const navLabel = frame.locator('[data-pve-scope="global:header"] [data-pve-field="navItems.0.label"]')
     await navLabel.hover()
     await expect(frame.locator('[data-pve-hover-label]')).toHaveText('Header')
-    await navLabel.click()
+    await navLabel.dblclick()
 
     const drawer = page.locator('.drawer--is-open')
     const labelField = drawer.locator('#field-navItems__0__label')
@@ -446,7 +453,7 @@ test.describe('visual editor', () => {
     const frame = page.frameLocator('iframe#live-preview-iframe')
     await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
 
-    await frame.locator('[data-pve-field="layout.0.heading"]').click()
+    await frame.locator('[data-pve-field="layout.0.heading"]').dblclick()
     const popover = page.locator('.pve-popover')
     await expect(popover).toBeVisible()
     await expect(popover.locator('.pve-popover__title')).toHaveText('Heading')
@@ -457,8 +464,8 @@ test.describe('visual editor', () => {
     await input.fill('Popover edited')
     await expect(frame.locator('h1')).toHaveText('Popover edited')
 
-    // Selecting another region retargets the popover in place
-    await frame.locator('[data-pve-field="layout.1.label"]').click()
+    // Double-clicking another region retargets the popover
+    await frame.locator('[data-pve-field="layout.1.label"]').dblclick()
     await expect(popover.locator('.pve-popover__title')).toHaveText('Label')
     await expect(popover.locator('#field-layout__1__label')).toBeVisible()
 
@@ -469,7 +476,7 @@ test.describe('visual editor', () => {
 
     // Clicking unmarked page space closes it from the iframe side (deselect).
     // The header's padding carries only a scope attribute — no field region.
-    await frame.locator('[data-pve-field="layout.0.heading"]').click()
+    await frame.locator('[data-pve-field="layout.0.heading"]').dblclick()
     await expect(popover).toBeVisible()
     await frame.locator('header').click({ position: { x: 4, y: 4 } })
     await expect(popover).toHaveCount(0)
@@ -483,8 +490,8 @@ test.describe('visual editor', () => {
     const frame = page.frameLocator('iframe#live-preview-iframe')
     await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
 
-    // Clicking row padding (outside child fields) targets the row region
-    await frame.locator('[data-pve-block-type="hero"]').click({ position: { x: 8, y: 8 } })
+    // Double-clicking row padding (outside child fields) targets the row region
+    await frame.locator('[data-pve-block-type="hero"]').dblclick({ position: { x: 8, y: 8 } })
     const popover = page.locator('.pve-popover')
     await expect(popover).toBeVisible()
     await expect(popover.locator('.pve-popover__title')).toHaveText('Hero')
@@ -504,6 +511,33 @@ test.describe('visual editor', () => {
     await expect(popover).toHaveCount(0)
   })
 
+  test('chip edit opens the row popover; chip show-in-layout reveals the isolated panel row', async ({ page }) => {
+    await login(page, 'dev@payloadcms.com')
+    const id = await createTestPage(page, 'e2e-chip-edit')
+    await page.goto(`/admin/visual-editor/pages/${id}`)
+
+    const frame = page.frameLocator('iframe#live-preview-iframe')
+    await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
+
+    // The chip's edit button is the pointer-free route to the row popover
+    let chip = await hoverRowChip(frame, '[data-pve-block-type="hero"]')
+    await chip.locator('[data-pve-chip-action="edit"]').click()
+    const popover = page.locator('.pve-popover')
+    await expect(popover).toBeVisible()
+    await expect(popover.locator('.pve-popover__title')).toHaveText('Hero')
+    await page.keyboard.press('Escape')
+    await expect(popover).toHaveCount(0)
+
+    // Show-in-layout opens the hidden panel with the row isolated: the target
+    // expanded and focused, sibling rows collapsed
+    await expect(page.locator('.collection-edit__main')).toBeHidden()
+    chip = await hoverRowChip(frame, '[data-pve-block-type="cta"]')
+    await chip.locator('[data-pve-chip-action="show-in-layout"]').click()
+    await expect(page.locator('.collection-edit__main')).toBeVisible()
+    await expect(page.locator('#field-layout__1__label')).toBeVisible()
+    await expect(page.locator('#field-layout__0__heading')).toBeHidden()
+  })
+
   test('richText popover renders the server-rendered Lexical editor', async ({ page }) => {
     await login(page, 'dev@payloadcms.com')
     const id = await createTestPage(page, 'e2e-popover-rich', [
@@ -515,7 +549,7 @@ test.describe('visual editor', () => {
     const frame = page.frameLocator('iframe#live-preview-iframe')
     await expect(frame.locator('[data-pve-overlay]')).toHaveCount(1, { timeout: 20_000 })
 
-    await frame.locator('[data-pve-field="layout.1.body"]').click()
+    await frame.locator('[data-pve-field="layout.1.body"]').dblclick()
     const popover = page.locator('.pve-popover')
     await expect(popover).toBeVisible()
 

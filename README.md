@@ -1,6 +1,6 @@
 # payload-inline-visual-editor
 
-Inline visual editing for [Payload CMS](https://payloadcms.com) 3.x — browse your site in Live Preview, toggle edit mode, hover-highlight editable regions, click to edit any field with native Payload field UI, and add / duplicate / remove / drag-reorder blocks directly on the page. A dedicated full-screen editor view, cross-document editing drawers, and a toolbar with save / publish / locale round it out.
+Inline visual editing for [Payload CMS](https://payloadcms.com) 3.x — browse your site in Live Preview, toggle edit mode, hover-highlight editable regions, double-click to edit any field with native Payload field UI, and add / duplicate / remove / drag-reorder blocks directly on the page. A dedicated full-screen editor view, cross-document editing drawers, and a toolbar with save / publish / locale round it out.
 
 The editor is layered on top of core Live Preview: the standard save / publish / autosave / versions / locales flow keeps working unchanged, document data flows through the stock Live Preview pipeline, and every field type (Lexical, uploads, relationships, custom plugin fields) gets native editing for free.
 
@@ -87,7 +87,7 @@ import { VisualEditing } from '@payload-inline-visual-editor/react'
 
 ### 4. Edit
 
-Open a document in the admin panel, enter Live Preview, and click **Edit on page**. Hover highlights editable regions; clicking a field expands, scrolls to, and focuses the corresponding form field in the admin panel. Rows show a chip with add / duplicate / remove / drag-to-reorder.
+Open a document in the admin panel, enter Live Preview, and click **Edit on page**. Hover highlights editable regions; a click selects a region, and a double-click expands, scrolls to, and focuses the corresponding form field in the admin panel. Rows show a chip with edit / add / duplicate / remove / show-in-layout / drag-to-reorder.
 
 ## Choosing a preview mode
 
@@ -102,13 +102,13 @@ The [dev playground](./dev) exercises both: [`dev/app/(frontend)/client-mode`](.
 
 ## Dedicated editor view
 
-Besides the "Edit on page" toggle inside the document edit view, the plugin registers a full-screen editor at `/admin/visual-editor/:collectionSlug/:id` (globals: `/admin/visual-editor/globals/:globalSlug`) — a bare view with no admin navigation: a top toolbar (document status, save / publish, locale switcher, exit), a collapsible fields panel, and the live preview filling the rest, with edit mode already on. The breakpoint / size / zoom controls of the stock preview toolbar sit above the preview.
+Besides the "Edit on page" toggle inside the document edit view, the plugin registers a full-screen editor at `/admin/visual-editor/:collectionSlug/:id` (globals: `/admin/visual-editor/globals/:globalSlug`) — a bare view with no admin navigation: a top toolbar (document status, save / publish, locale switcher, exit) and the live preview filling the rest, with edit mode already on. The breakpoint / size / zoom controls of the stock preview toolbar sit above the preview. The fields panel is hidden by default — **Show layout** in the toolbar (or a block chip's **show in layout** button, which scrolls to that block with the other blocks collapsed) opens it.
 
 Every enabled document gets an **Open visual editor** button in its edit view controls; **Exit** in the toolbar leads back. Deep links work — the view enforces admin authentication itself.
 
-Inside the view, clicking a marked region opens a **near-cursor popover** that edits just that field — a leaf region edits the single field, a block/array row edits the row's fields — bound to the same form as the docked panel, so edits stream straight into the preview and save/publish/autosave behave exactly as in the edit view. Rich text renders the full Lexical editor; upload and relationship fields keep their native drawer flows. Close it with the ✕, <kbd>Escape</kbd>, or by clicking empty page space in the preview.
+Inside the view, double-clicking a marked region — or clicking the **edit** button on a block's chip — opens a **near-cursor popover** that edits just that field: a leaf region edits the single field, a block/array row edits the row's fields — bound to the same form as the layout panel, so edits stream straight into the preview and save/publish/autosave behave exactly as in the edit view. Rich text renders the full Lexical editor; upload and relationship fields keep their native drawer flows. Close it with the ✕, <kbd>Escape</kbd>, or by clicking empty page space in the preview.
 
-Clicking a region that belongs to a *different* document (a global header, a related doc) opens that document in a drawer, without leaving the page — saving it flows through the standard document-event path, so an SSR-mode preview refreshes automatically (client mode re-renders the current document's data only; other documents update on the next page load).
+Double-clicking a region that belongs to a *different* document (a global header, a related doc) opens that document in a drawer, without leaving the page — saving it flows through the standard document-event path, so an SSR-mode preview refreshes automatically (client mode re-renders the current document's data only; other documents update on the next page load).
 
 The view and its toolbar are configurable (see plugin options below): `view: { enabled: false }` removes the route, `view.path` relocates it, and `toolbar` hides individual controls.
 

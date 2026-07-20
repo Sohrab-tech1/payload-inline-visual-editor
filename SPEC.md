@@ -33,13 +33,13 @@ Nearest community prior art (`omaroubari/payloadcms-visual-editor`) is text-fiel
 
 1. Editor opens a document in the admin; Live Preview mode shows the site in an iframe.
 2. A new **"Edit on page"** toggle appears in the document controls bar. Enabling it activates the overlay in the iframe.
-3. Hovering marked elements shows highlight rects + labels. Clicking a field region expands/scrolls/focuses the corresponding field in the admin form panel (Tina-style). Hovering/focusing a field in the form flashes the element on the page (reverse sync).
-4. Block/array rows get a floating chip: **add above/below · duplicate · remove · drag handle**. Dragging reorders within the container with a drop indicator; empty containers show an "add" affordance. Adding a block opens Payload's native block picker.
+3. Hovering marked elements shows highlight rects + labels. A single click selects (locks the highlight + chip); double-clicking a field region expands/scrolls/focuses the corresponding field in the admin form panel (Tina-style). Hovering/focusing a field in the form flashes the element on the page (reverse sync).
+4. Block/array rows get a floating chip: **edit · add above/below · duplicate · remove · show in layout · drag handle**. Edit requests editing the row (v1: form focus, v2: popover); show-in-layout reveals the row in the fields panel with sibling rows collapsed. Dragging reorders within the container with a drop indicator; empty containers show an "add" affordance. Adding a block opens Payload's native block picker.
 5. All changes flow through the standard form → Live Preview data stream → the page re-renders live. Save/publish/autosave/versions/locales work exactly as in the normal edit view (audit trail for free).
 
 ### Editor flow (v2 — dedicated full-screen view)
 
-`/admin/visual-editor/:collectionSlug/:id` — a bare custom admin view (no admin nav): full-bleed iframe, top toolbar (document title/status, save/publish, locale switcher, breakpoint selector, exit), and a floating field panel. Clicking a region opens a near-cursor popover editing just that field (same Form context). Clicking a region belonging to another document (e.g. a global header) opens it in a `DocumentDrawer`. Same protocol, SDK, and controller as v1 — only the host shell changes.
+`/admin/visual-editor/:collectionSlug/:id` — a bare custom admin view (no admin nav): full-bleed iframe, top toolbar (document title/status, save/publish, locale switcher, breakpoint selector, exit), and a fields panel hidden by default (Django CMS-sidebar style: "Show layout" in the toolbar or the chip's show-in-layout button opens it). Double-clicking a region — or the chip's edit button — opens a near-cursor popover editing just that field (same Form context); a single click only selects. Double-clicking a region belonging to another document (e.g. a global header) opens it in a `DocumentDrawer`. Same protocol, SDK, and controller as v1 — only the host shell changes.
 
 ### Non-goals (v1)
 
@@ -204,7 +204,9 @@ type PveMessage<T extends string, P> = {
 | iframe→admin | `hello-ack` | `{ sdkVersion, draft?: boolean }` — SDK begins scanning; `draft:false` triggers an admin warning banner |
 | admin→iframe | `edit-mode` | `{ enabled }` |
 | iframe→admin | `regions` | `{ regions: Region[] }` — debounced re-report after mutations; `Region = { regionId, scope, kind: 'field'\|'row'\|'container', path, rowId?, blockType? }` (no rects — overlay is in-iframe) |
-| iframe→admin | `hover` / `select` | `{ regionId, path, scope }` — hover sync + click-to-edit |
+| iframe→admin | `hover` / `select` | `{ regionId, path, scope }` — hover sync + edit request (double-click or chip edit button; `select` adds `point`/`rect` iframe-viewport geometry for the v2 popover anchor) |
+| iframe→admin | `reveal` | `{ regionId, path, scope }` — chip "show in layout": open the fields panel with the region's row expanded and sibling rows collapsed, then scroll/focus/flash it |
+| both | `deselect` | `null` — the current selection was dismissed (SDK lock cleared/moved ↔ admin popover closed) |
 | admin→iframe | `focus` | `{ path }` — admin-side field hover/focus → flash element on page |
 | iframe→admin | `op` | `{ opId, op: 'add'\|'duplicate'\|'remove'\|'move', containerPath, scope, rowId?, rowIndex?, blockType?, moveFromIndex?, moveToIndex? }` |
 | admin→iframe | `op-ack` | `{ opId, ok, error? }` |
@@ -262,9 +264,10 @@ Overlay = one `position: fixed; pointer-events: none` layer appended to `documen
 
 ## 9. Field editing flows
 
+- **Selection model:** a single click locks the selection (solid highlight + reachable chip); editing is requested by double-click or the chip's edit button (`select`), so browsing marked content never spawns editing UI. The chip's show-in-layout button (`reveal`) opens the fields panel with the row isolated — its ancestors expanded, sibling rows at each level collapsed — then scrolls/focuses/flashes it.
 - **v1 — focus-in-form:** `select { path }` → controller expands collapsed ancestor rows, scrolls `#field-${path.replace(/\./g,'__')}` (or `[data-field-path]`) into view in `DocumentFields`, focuses the first focusable input, flashes a highlight. Reverse: form field hover/focus → `focus { path }` → SDK flashes the page element. Every field type — Lexical, uploads, relationships, custom plugin fields — gets native editing for free.
-- **v2 — near-cursor popover:** admin-side popover (position translated through iframe zoom/DeviceContainer offset from `useLivePreviewContext().zoom`/`measuredDeviceSize`) rendering just the clicked field subtree via `RenderFields` bound to the **same** Form context; server-rendered custom field components fetched on demand via the `'render-field'` server function.
-- **Cross-document & relationships:** clicking a region of another document (`doc-switch-request`) or "edit related doc" opens `useDocumentDrawer` for that entity; after drawer save, the stock `payload-document-event` triggers the site refresh path.
+- **v2 — near-cursor popover:** admin-side popover (position translated through iframe zoom/DeviceContainer offset from `useLivePreviewContext().zoom`/`measuredDeviceSize`) rendering just the selected field subtree via `RenderFields` bound to the **same** Form context; server-rendered custom field components fetched on demand via the `'render-field'` server function.
+- **Cross-document & relationships:** double-clicking a region of another document (`doc-switch-request`) or "edit related doc" opens `useDocumentDrawer` for that entity; after drawer save, the stock `payload-document-event` triggers the site refresh path.
 
 ---
 

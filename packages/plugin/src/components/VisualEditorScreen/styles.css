@@ -43,6 +43,15 @@
   display: none;
 }
 
+/* Stock 60% width assumes the fields panel fills the other 40% — here the
+   panel is docked or hidden, so the preview claims the remaining space and
+   "responsive" means full width. Fixed breakpoints still size the iframe. */
+.pve-shell .live-preview-window {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
 .pve-shell--no-preview-toolbar .live-preview-toolbar {
   display: none;
 }

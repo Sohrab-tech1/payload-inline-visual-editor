@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {
   collectRowExpansions,
+  collectRowIsolation,
   fieldElementId,
   findFieldElement,
   focusFormField,
@@ -88,6 +89,45 @@ describe('collectRowExpansions', () => {
   it('ignores paths without row segments or unknown containers', () => {
     expect(collectRowExpansions(fields, 'title')).toEqual([])
     expect(collectRowExpansions(fields, 'other.0.x')).toEqual([])
+  })
+})
+
+describe('collectRowIsolation', () => {
+  const fields = {
+    layout: { rows: [{ collapsed: true, id: 'a' }, { collapsed: false, id: 'b' }, { id: 'c' }] },
+    'layout.0.columns': { rows: [{ id: 'd' }, { collapsed: true, id: 'e' }] },
+  }
+
+  it('expands the path row and collapses its siblings at every level', () => {
+    expect(collectRowIsolation(fields, 'layout.0.columns.1.heading')).toEqual([
+      {
+        path: 'layout',
+        updatedRows: [
+          { collapsed: false, id: 'a' },
+          { collapsed: true, id: 'b' },
+          { collapsed: true, id: 'c' },
+        ],
+      },
+      {
+        path: 'layout.0.columns',
+        updatedRows: [
+          { collapsed: true, id: 'd' },
+          { collapsed: false, id: 'e' },
+        ],
+      },
+    ])
+  })
+
+  it('skips containers already in the isolated shape', () => {
+    const isolated = {
+      layout: { rows: [{ collapsed: false, id: 'a' }, { collapsed: true, id: 'b' }] },
+    }
+    expect(collectRowIsolation(isolated, 'layout.0.heading')).toEqual([])
+  })
+
+  it('ignores paths without row segments or unknown containers', () => {
+    expect(collectRowIsolation(fields, 'title')).toEqual([])
+    expect(collectRowIsolation(fields, 'other.0.x')).toEqual([])
   })
 })
 

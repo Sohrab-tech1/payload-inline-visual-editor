@@ -46,7 +46,9 @@ export const VisualEditorScreen = ({
 
   const [document, setDocument] = useState<null | ReactNode>(null)
   const [failed, setFailed] = useState(false)
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  // Popover editing covers the common flows — the layout panel is on demand
+  // ("Show layout" / chip "show in layout"), Django CMS-sidebar style.
+  const [panelCollapsed, setPanelCollapsed] = useState(true)
 
   const runtime = visualEditorRuntime(config.admin)
   const { breakpoint = true, exit = true, locale: localeControl = true } = runtime?.toolbar ?? {}

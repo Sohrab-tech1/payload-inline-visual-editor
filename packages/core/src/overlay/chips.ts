@@ -2,7 +2,13 @@ import type { PveBlockOps } from '../protocol.js'
 
 import { ACCENT } from './theme.js'
 
-export type RowChipAction = 'add-above' | 'add-below' | 'duplicate' | 'remove'
+export type RowChipAction = 'add-above' | 'add-below' | 'duplicate' | 'edit' | 'remove' | 'show-in-layout'
+
+/** Block ops plus the row-level affordances that don't depend on block-op config. */
+export type RowChipOptions = PveBlockOps & {
+  edit: boolean
+  reveal: boolean
+}
 
 export type RowChipCallbacks = {
   onAction: (action: RowChipAction) => void
@@ -32,7 +38,12 @@ const ICONS: Record<'drag' | RowChipAction, IconShape[]> = {
     ['rect', { fill: 'none', height: '7', rx: '1', width: '7', x: '4.5', y: '4.5' }],
     ['path', { d: 'M9.5 2.5h-6a1 1 0 0 0-1 1v6', fill: 'none' }],
   ],
+  edit: [['path', { d: 'M9 2.5l2.5 2.5L5 11.5H2.5V9L9 2.5z', fill: 'none' }]],
   remove: [['path', { d: 'M2.5 4h9M5.5 4V2.5h3V4M4 4l.5 7.5h5L10 4M6.2 6v3.5M7.8 6v3.5', fill: 'none' }]],
+  'show-in-layout': [
+    ['rect', { fill: 'none', height: '9', rx: '1', width: '11', x: '1.5', y: '2.5' }],
+    ['path', { d: 'M5.5 2.5v9', fill: 'none' }],
+  ],
 }
 
 const BUTTON_TITLES: Record<'drag' | RowChipAction, string> = {
@@ -40,7 +51,9 @@ const BUTTON_TITLES: Record<'drag' | RowChipAction, string> = {
   'add-below': 'Add block below',
   drag: 'Drag to reorder',
   duplicate: 'Duplicate block',
+  edit: 'Edit block',
   remove: 'Remove block',
+  'show-in-layout': 'Show in layout',
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -112,7 +125,7 @@ export class RowChip {
     this.chip = chip
   }
 
-  show(target: Element, ops: PveBlockOps): void {
+  show(target: Element, ops: RowChipOptions): void {
     if (!this.chip) {
       return
     }
@@ -155,12 +168,15 @@ export class RowChip {
     this.target = null
   }
 
-  private renderButtons(ops: PveBlockOps): void {
+  private renderButtons(ops: RowChipOptions): void {
     const chip = this.chip!
     chip.setAttribute('data-pve-chip-ops', opsSignature(ops))
     chip.textContent = ''
     const doc = chip.ownerDocument
     const actions: ('drag' | RowChipAction)[] = []
+    if (ops.edit) {
+      actions.push('edit')
+    }
     if (ops.add) {
       actions.push('add-above', 'add-below')
     }
@@ -169,6 +185,9 @@ export class RowChip {
     }
     if (ops.remove) {
       actions.push('remove')
+    }
+    if (ops.reveal) {
+      actions.push('show-in-layout')
     }
     if (ops.move) {
       actions.push('drag')
@@ -202,5 +221,6 @@ export class RowChip {
   }
 }
 
-const opsSignature = (ops: PveBlockOps): string =>
-  `${ops.add ? 'a' : ''}${ops.duplicate ? 'd' : ''}${ops.move ? 'm' : ''}${ops.remove ? 'r' : ''}`
+const opsSignature = (ops: RowChipOptions): string =>
+  `${ops.add ? 'a' : ''}${ops.duplicate ? 'd' : ''}${ops.edit ? 'e' : ''}${ops.move ? 'm' : ''}` +
+  `${ops.remove ? 'r' : ''}${ops.reveal ? 'l' : ''}`
