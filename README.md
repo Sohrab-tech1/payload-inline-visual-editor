@@ -1,5 +1,8 @@
 # payload-inline-visual-editor
 
+[![npm version](https://img.shields.io/npm/v/payload-inline-visual-editor.svg)](https://www.npmjs.com/package/payload-inline-visual-editor)
+[![license](https://img.shields.io/npm/l/payload-inline-visual-editor.svg)](./LICENSE)
+
 Inline visual editing for [Payload CMS](https://payloadcms.com) 3.x — browse your site in Live Preview, toggle edit mode, hover-highlight editable regions, double-click to edit any field with native Payload field UI, and add / duplicate / remove / drag-reorder blocks directly on the page. A dedicated full-screen editor view, cross-document editing drawers, and a toolbar with save / publish / locale round it out.
 
 ![Double-clicking a heading opens a popover with the native Payload text field, then a rich text body opens the full Lexical editor with its formatting toolbar — the page updates as you type](docs/media/inline-editing.gif)
@@ -19,9 +22,9 @@ The editor is layered on top of core Live Preview: the standard save / publish /
 
 | Package | Description |
 |---|---|
-| `payload-inline-visual-editor` | The Payload plugin (admin side) |
-| `@payload-inline-visual-editor/core` | Framework-agnostic site SDK (vanilla TS, zero runtime deps) |
-| `@payload-inline-visual-editor/react` | React/Next adapter: `<VisualEditing/>`, `payloadEditable()` |
+| [`payload-inline-visual-editor`](https://www.npmjs.com/package/payload-inline-visual-editor) | The Payload plugin (admin side) |
+| [`@payload-inline-visual-editor/core`](https://www.npmjs.com/package/@payload-inline-visual-editor/core) | Framework-agnostic site SDK (vanilla TS, zero runtime deps) |
+| [`@payload-inline-visual-editor/react`](https://www.npmjs.com/package/@payload-inline-visual-editor/react) | React/Next adapter: `<VisualEditing/>`, `payloadEditable()` |
 
 ## Requirements
 
