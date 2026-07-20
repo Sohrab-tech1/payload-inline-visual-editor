@@ -1,6 +1,6 @@
 {
   "name": "@payload-inline-visual-editor/core",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Framework-agnostic site SDK for the Payload CMS inline visual editor",
   "license": "MIT",
   "type": "module",

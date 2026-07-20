@@ -4,7 +4,7 @@ Manual release checklist (no CI publishing).
 
 ## Pre-flight
 
-1. **Naming** (first release only): confirm the final npm names — `payload-visual-editor` and `payloadcms-visual-editor` are taken; current working name is `payload-inline-visual-editor` + the `@payload-inline-visual-editor/*` scope. The scope must exist as an npm org before publishing.
+1. **Naming**: the plugin publishes as `payload-inline-visual-editor`, with the SDK packages under the `@payload-inline-visual-editor/*` scope. The scope must exist as an npm org before the first publish.
 2. Bump the version in `packages/{core,plugin,react}/package.json` (keep all three in lockstep) and `SDK_VERSION` in `packages/core/src/protocol.ts`.
 3. Verify everything from a clean state:
 
@@ -30,6 +30,6 @@ pnpm publish -r --access public
 
 ## After publishing
 
-- Tag the release: `git tag v0.1.0 && git push origin v0.1.0`.
+- Tag the release: `git tag v1.0.0 && git push origin v1.0.0`.
 - Add the `payload-plugin` topic to the GitHub repository (Settings → Topics) so the plugin is discoverable.
 - Smoke-test the published artifacts in a scratch Payload app: install the plugin, run `payload generate:importmap`, open Live Preview, toggle edit mode.

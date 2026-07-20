@@ -6,7 +6,7 @@ Inline visual editing for [Payload CMS](https://payloadcms.com) 3.x — browse y
 
 The editor is layered on top of core Live Preview: the standard save / publish / autosave / versions / locales flow keeps working unchanged, document data flows through the stock Live Preview pipeline, and every field type (Lexical, uploads, relationships, custom plugin fields) gets native editing for free.
 
-> **Status: 0.1 — early.** APIs may shift before 1.0.
+> **Status: 1.0.** The public API is stable; changes follow semver.
 
 ## A look around
 
